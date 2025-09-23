@@ -85,12 +85,18 @@ function applyStroke(item, color, width, linetype) {
                 break;
             case "dashed":
                 item.strokeDashes = [6, 3];        // dashed
+                item.strokeCap = StrokeCap.ROUNDENDCAP;
+                item.strokeJoin = StrokeJoin.ROUNDENDJOIN;
                 break;
             case "dots":
                 item.strokeDashes = [1, 3];        // dotted
+                item.strokeCap = StrokeCap.ROUNDENDCAP;
+                item.strokeJoin = StrokeJoin.ROUNDENDJOIN;
                 break;
             case "hidden":
                 item.strokeDashes = [2, 2];        // short dash
+                item.strokeCap = StrokeCap.ROUNDENDCAP;
+                item.strokeJoin = StrokeJoin.ROUNDENDJOIN;
                 break;
             default:
                 item.strokeDashes = [];
@@ -122,7 +128,7 @@ for (var i=0; i<data.length; i++){
             var centerX = pts[0][0];
             var centerY = pts[0][1];
             var radius = (curve.radius !== undefined) ? mmToPt(curve.radius) :
-                         Math.sqrt(Math.pow(pts[1][0]-centerX,2)+Math.pow(pts[1][1]-centerY,2));
+                        Math.sqrt(Math.pow(pts[1][0]-centerX,2)+Math.pow(pts[1][1]-centerY,2));
             var circ = targetLayer.pathItems.ellipse(centerY + radius, centerX - radius, radius*2, radius*2);
             circ.closed = true;
             applyStroke(circ, curve.color, curve.width, curve.linetype);

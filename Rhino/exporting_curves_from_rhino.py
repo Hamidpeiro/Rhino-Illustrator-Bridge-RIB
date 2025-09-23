@@ -17,7 +17,6 @@ def export_shapes_per_artboard(mirror=False):
 
     result = []
 
-    # جمع‌آوری همه منحنی‌ها و پلی‌لاین‌ها
     all_objs = []
     all_objs += rs.ObjectsByType(4, select=False) or []      # Curve
     all_objs += rs.ObjectsByType(8192, select=False) or []   # Polyline
@@ -28,7 +27,7 @@ def export_shapes_per_artboard(mirror=False):
         if not rects:
             continue
 
-        # تشخیص مستطیل آرتبورد
+        # Detect artboard rectangle
         artboard_rect = None
         for obj in rects:
             if rs.IsCurve(obj) and rs.IsCurveClosed(obj):
@@ -58,48 +57,57 @@ def export_shapes_per_artboard(mirror=False):
             if (min(cx) >= min_x and max(cx) <= max_x and
                 min(cy) >= min_y and max(cy) <= max_y):
 
-                # تعیین نوع آبجکت
                 obj_type = "curve"
-                if rs.IsCircle(obj):
-                    obj_type = "circle"
-                elif rs.IsEllipse(obj):
-                    obj_type = "ellipse"
-                elif rs.IsPolyline(obj):
+                pts_list = []
+
+                # Smooth NURBS / splines
+                if rs.IsCurve(obj) and rs.CurveDegree(obj) > 1:
+                    num_pts = max(100, rs.CurvePointCount(obj)*5)  # more points for smoothness
+                    pts = rs.DivideCurve(obj, num_pts)
+                    pts_list = [[pt.X, pt.Y] for pt in pts]
+                    obj_type = "nurbs"
+
+                # Straight polylines / lines
+                elif rs.IsCurve(obj) and rs.CurveDegree(obj) == 1:
+                    pts = rs.CurvePoints(obj)
+                    pts_list = [[pt.X, pt.Y] for pt in pts]
                     obj_type = "polyline"
 
-                pts_list = []
-                if rs.IsCurve(obj):
-                    deg = rs.CurveDegree(obj)
-                    if deg == 1:
-                        # خط یا مستطیل: width, height ذخیره کن
-                        pts = rs.CurvePoints(obj)
-                        pts_list = [[pt.X, pt.Y] for pt in pts]
-                        obj_type = "polyline"
-                    else:
-                        # NURBS / Interpolate Curve
-                        num_pts = 50
-                        pts = rs.DivideCurve(obj, num_pts)
-                        pts_list = [[pt.X, pt.Y] for pt in pts]
-                        obj_type = "curve"
+                # Circles
                 elif rs.IsCircle(obj):
                     center = rs.CircleCenterPoint(obj)
                     radius = rs.CircleRadius(obj)
-                    pts_list = [[center.X, center.Y], [center.X+radius, center.Y]]
+                    pts_list = [[center.X, center.Y], [center.X + radius, center.Y]]
                     obj_type = "circle"
-                elif rs.IsRectangle(obj):
-                    # rectangle width/height
-                    bbox = rs.BoundingBox(obj)
-                    pts_list = [[p.X, p.Y] for p in bbox]
-                    obj_type = "rectangle"
 
-                # Mirror روی محور X
+                # Ellipses
+                elif rs.IsEllipse(obj):
+                    center = rs.EllipseCenterPoint(obj)
+                    radius1 = rs.EllipseRadius1(obj)
+                    radius2 = rs.EllipseRadius2(obj)
+                    pts_list = [[center.X, center.Y], [center.X + radius1, center.Y]]
+                    obj_type = "ellipse"
+
+                # Mirror if needed
                 if mirror:
                     pts_list = [[x, -y] for x, y in pts_list]
+
+                # Export line properties
+                color = rs.ObjectColor(obj)
+                width = rs.ObjectPrintWidth(obj)
+                linetype = rs.ObjectLinetype(obj)
+
+                color_rgb = [color.R, color.G, color.B] if color else [0, 0, 0]
+                width_val = width if width else 1.0
+                linetype_val = linetype if linetype else "Continuous"
 
                 shapes.append({
                     "layer": rs.ObjectLayer(obj),
                     "type": obj_type,
-                    "points": pts_list
+                    "points": pts_list,
+                    "color": color_rgb,
+                    "width": width_val,
+                    "linetype": linetype_val
                 })
 
         result.append({
@@ -113,5 +121,5 @@ def export_shapes_per_artboard(mirror=False):
     total_shapes = sum(len(a['curves']) for a in result)
     print(f"✅ Exported {len(result)} artboards with {total_shapes} shapes -> {desktop_path}")
 
-# اجرا با mirror=True اگر می‌خوای افقی شود
+# Run with mirror=True if needed
 export_shapes_per_artboard(mirror=True)
