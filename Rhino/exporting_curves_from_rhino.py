@@ -64,46 +64,49 @@ def export_shapes_per_artboard(mirror=False):
                 if rs.IsCurve(obj) and rs.CurveDegree(obj) > 1:
                     num_pts = max(100, rs.CurvePointCount(obj)*5)  # more points for smoothness
                     pts = rs.DivideCurve(obj, num_pts)
-                    pts_list = [[pt.X, pt.Y] for pt in pts]
+                    if pts:
+                        pts_list = [[float(pt.X), float(pt.Y)] for pt in pts]
                     obj_type = "nurbs"
 
                 # Straight polylines / lines
                 elif rs.IsCurve(obj) and rs.CurveDegree(obj) == 1:
                     pts = rs.CurvePoints(obj)
-                    pts_list = [[pt.X, pt.Y] for pt in pts]
+                    if pts:
+                        pts_list = [[float(pt.X), float(pt.Y)] for pt in pts]
                     obj_type = "polyline"
 
                 # Circles
                 elif rs.IsCircle(obj):
                     center = rs.CircleCenterPoint(obj)
-                    radius = rs.CircleRadius(obj)
-                    pts_list = [[center.X, center.Y], [center.X + radius, center.Y]]
+                    radius = float(rs.CircleRadius(obj))
+                    pts_list = [[float(center.X), float(center.Y)], [float(center.X) + radius, float(center.Y)]]
                     obj_type = "circle"
 
                 # Ellipses
                 elif rs.IsEllipse(obj):
                     center = rs.EllipseCenterPoint(obj)
-                    radius1 = rs.EllipseRadius1(obj)
-                    radius2 = rs.EllipseRadius2(obj)
-                    pts_list = [[center.X, center.Y], [center.X + radius1, center.Y]]
+                    radius1 = float(rs.EllipseRadius1(obj))
+                    radius2 = float(rs.EllipseRadius2(obj))
+                    pts_list = [[float(center.X), float(center.Y)], [float(center.X) + radius1, float(center.Y)]]
                     obj_type = "ellipse"
 
                 # Mirror if needed
                 if mirror:
-                    pts_list = [[x, -y] for x, y in pts_list]
+                    pts_list = [[float(x), -float(y)] for x, y in pts_list]
 
                 # Export line properties
                 color = rs.ObjectColor(obj)
                 width = rs.ObjectPrintWidth(obj)
                 linetype = rs.ObjectLinetype(obj)
 
-                color_rgb = [color.R, color.G, color.B] if color else [0, 0, 0]
-                width_val = width if width else 1.0
-                linetype_val = linetype if linetype else "Continuous"
+                color_rgb = [int(color.R), int(color.G), int(color.B)] if color else [0, 0, 0]
+                width_val = float(width) if width else 1.0
+                linetype_val = str(linetype) if linetype else "Continuous"
 
                 shapes.append({
-                    "layer": rs.ObjectLayer(obj),
-                    "type": obj_type,
+                    "layer": str(rs.ObjectLayer(obj)),
+                    "type": str(obj_type),
+                    "closed": bool(rs.IsCurveClosed(obj)),
                     "points": pts_list,
                     "color": color_rgb,
                     "width": width_val,
@@ -119,7 +122,7 @@ def export_shapes_per_artboard(mirror=False):
         json.dump(result, f, indent=2)
 
     total_shapes = sum(len(a['curves']) for a in result)
-    print(f"✅ Exported {len(result)} artboards with {total_shapes} shapes -> {desktop_path}")
+    print("✅ Exported {} artboards with {} shapes -> {}".format(len(result), total_shapes, desktop_path))
 
 # Run with mirror=True if needed
 export_shapes_per_artboard(mirror=True)

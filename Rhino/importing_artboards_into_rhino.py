@@ -34,7 +34,7 @@ def import_artboards_from_json():
         top = ab.get("top_mm", 0)
 
         # Create sublayer for this artboard
-        sub_layer = f"{parent_layer}::{name}"
+        sub_layer = "{}::{}".format(parent_layer, name)
         if not rs.IsLayer(sub_layer):
             rs.AddLayer(sub_layer, parent_layer)
 
