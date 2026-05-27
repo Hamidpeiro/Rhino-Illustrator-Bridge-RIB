@@ -420,6 +420,7 @@ class RhinoSyncPanel(forms.Form):
                     layer_name = str(rs.ObjectLayer(obj))
                     if layer_name.startswith("Artboards::"):
                         layer_name = layer_name.replace("Artboards::", "", 1)
+                    obj_id_str = str(obj)
 
                     # ---------- HATCH handling ----------
                     if rs.IsHatch(obj):
@@ -428,12 +429,13 @@ class RhinoSyncPanel(forms.Form):
                             loops = self._get_hatch_outer_boundary(obj)
                             if not loops:
                                 continue
-                            for loop in loops:
+                            for idx, loop in enumerate(loops):
                                 if len(loop) < 2:
                                     continue
                                 # Mirror Y for Illustrator
                                 mirrored = [[float(x), float(-y)] for x, y in loop]
                                 shapes.append({
+                                    "id":         "{}_{}".format(obj_id_str, idx),
                                     "layer":      layer_name,
                                     "type":       "hatch_solid",
                                     "closed":     True,
@@ -461,13 +463,14 @@ class RhinoSyncPanel(forms.Form):
                                 is_solid = True  # If explode failed, it is a solid hatch
                             if not loops:
                                 continue
-                            for loop in loops:
+                            for idx, loop in enumerate(loops):
                                 if len(loop) < 2:
                                     continue
                                 mirrored = [[float(x), float(-y)] for x, y in loop]
                                 if is_solid:
                                     # Solid hatch - filled polygon
                                     shapes.append({
+                                        "id":         "{}_{}".format(obj_id_str, idx),
                                         "layer":    layer_name,
                                         "type":     "hatch_solid",
                                         "closed":   True,
@@ -480,6 +483,7 @@ class RhinoSyncPanel(forms.Form):
                                 else:
                                     # Non-solid hatch - boundary curves (stroked)
                                     shapes.append({
+                                        "id":         "{}_{}".format(obj_id_str, idx),
                                         "layer":    layer_name,
                                         "type":     "polyline",
                                         "closed":   True,
@@ -544,6 +548,7 @@ class RhinoSyncPanel(forms.Form):
                             closed_val = False
 
                         shape_data = {
+                            "id":       obj_id_str,
                             "layer":    layer_name,
                             "type":     str(obj_type),
                             "closed":   closed_val,
@@ -574,6 +579,7 @@ class RhinoSyncPanel(forms.Form):
         self.last_rhino_signature = self.get_rhino_curves_signature()
         self.lbl_export_status.Text = "📤 Last Exported: " + time.strftime("%H:%M:%S")
         self.lbl_status.Text = "Status: Curves exported!"
+        self.btn_export.Text = "Update Curves to Illustrator"
         
         if not silent:
             Rhino.UI.Dialogs.ShowMessageBox("✅ Exported {} artboards with {} shapes successfully!".format(len(result), total_shapes), "Success")

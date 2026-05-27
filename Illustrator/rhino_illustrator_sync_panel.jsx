@@ -203,157 +203,7 @@
         }
     }
 
-    // =============================================
-    // IMPORT CURVES (runs in Main Engine)
-    // =============================================
-    function doImportMain(inPath) {
-        try {
-            var file = new File(inPath);
-            if (!file.exists) return "ERROR:Curves file not found at:\n" + inPath + "\n\nPlease run 'Export Curves' from Rhino first.";
-            
-            file.encoding = "UTF-8";
-            file.open("r");
-            var raw = file.read();
-            file.close();
 
-            if (!raw || raw.length === 0) return "ERROR:Curves JSON file is empty.\nPlease export curves from Rhino first.";
-            
-            var data;
-            try {
-                if (typeof JSON === "object" && JSON.parse) {
-                    data = JSON.parse(raw);
-                } else {
-                    data = eval("(" + raw + ")");
-                }
-            } catch(err) {
-                return "ERROR:Failed to parse JSON file.";
-            }
-            
-            if (!data || data.length === 0) return "ERROR:No curve data found in JSON file.";
-
-            var doc;
-            if (app.documents.length > 0) {
-                doc = app.activeDocument;
-            } else {
-                doc = app.documents.add();
-            }
-
-            function ensureLayer(pathName) {
-                var layer = doc;
-                var names = pathName.split("::");
-                for (var i = 0; i < names.length; i++) {
-                    try {
-                        layer = layer.layers.getByName(names[i]);
-                    } catch (e) {
-                        layer = layer.layers.add();
-                        layer.name = names[i];
-                    }
-                }
-                return layer;
-            }
-
-            function mmToPt(mm) { return mm * 2.8346456693; }
-
-            function applyStroke(item, color, width, linetype) {
-                if (!item) return;
-                item.stroked = true;
-                item.filled  = false;
-                if (color && color.length === 3) {
-                    var c = new RGBColor();
-                    c.red = color[0]; c.green = color[1]; c.blue = color[2];
-                    item.strokeColor = c;
-                }
-                item.strokeWidth = (typeof width === "number") ? width : 1.0;
-                var lt = linetype ? linetype.toLowerCase() : "";
-                if      (lt === "dashed")                       { item.strokeDashes = [6, 3]; }
-                else if (lt === "dots")                         { item.strokeDashes = [1, 3]; }
-                else if (lt === "hidden")                       { item.strokeDashes = [2, 2]; }
-                else if (lt === "dashdot" || lt === "center")  { item.strokeDashes = [6, 3, 0, 3]; }
-                else                                            { item.strokeDashes = []; }
-            }
-
-            var totalCurves = 0;
-            var clearedLayers = {};
-
-            for (var i = 0; i < data.length; i++) {
-                var abData = data[i];
-                var curves = abData.curves;
-                if (!curves) continue;
-
-                for (var j = 0; j < curves.length; j++) {
-                    var curve = curves[j];
-                    if (!curve.points || curve.points.length === 0) continue;
-                    if (!curve.layer) continue;
-
-                    var targetLayer = ensureLayer(curve.layer);
-
-                    // Clear target layer before adding new curves
-                    if (!clearedLayers[curve.layer]) {
-                        while (targetLayer.pageItems.length > 0) {
-                            targetLayer.pageItems[0].remove();
-                        }
-                        clearedLayers[curve.layer] = true;
-                    }
-
-                    var pts = [];
-                    for (var k = 0; k < curve.points.length; k++) {
-                        pts.push([mmToPt(curve.points[k][0]), -mmToPt(curve.points[k][1])]);
-                    }
-
-                    if (curve.type === "circle" && pts.length >= 1) {
-                        var cx = pts[0][0], cy = pts[0][1];
-                        var r  = (curve.radius !== undefined) ? mmToPt(curve.radius) : mmToPt(1);
-                        var circ = targetLayer.pathItems.ellipse(cy + r, cx - r, r * 2, r * 2);
-                        circ.closed = true;
-                        applyStroke(circ, curve.color, curve.width, curve.linetype);
-                    } else if (pts.length >= 2) {
-                        var poly = targetLayer.pathItems.add();
-                        try {
-                            // hatch_solid = solid filled polygon (Export as solid fill option)
-                            // hatch       = legacy filled polygon
-                            var isFill = (curve.type === "hatch_solid" || curve.type === "hatch");
-
-                            // Add points FIRST (Illustrator needs geometry before fill/stroke)
-                            for (var m = 0; m < pts.length; m++) {
-                                var pt = poly.pathPoints.add();
-                                pt.anchor         = [pts[m][0], pts[m][1]];
-                                pt.leftDirection  = pt.anchor;
-                                pt.rightDirection = pt.anchor;
-                                pt.pointType      = PointType.CORNER;
-                            }
-
-                            // Now apply fill or stroke
-                            if (isFill) {
-                                poly.closed  = true;
-                                poly.filled  = true;
-                                poly.stroked = false;
-                                // Prefer fill_color field, fall back to color
-                                var fc = curve.fill_color || curve.color;
-                                if (fc && fc.length === 3) {
-                                    var fillRgb = new RGBColor();
-                                    fillRgb.red   = fc[0];
-                                    fillRgb.green = fc[1];
-                                    fillRgb.blue  = fc[2];
-                                    poly.fillColor = fillRgb;
-                                }
-                            } else {
-                                poly.filled  = false;
-                                poly.stroked = true;
-                                poly.closed  = (curve.closed === true);
-                                applyStroke(poly, curve.color, curve.width, curve.linetype);
-                            }
-                        } catch(e) { /* skip bad paths */ }
-                    }
-                    totalCurves++;
-                }
-            }
-
-            app.redraw();
-            return totalCurves.toString();
-        } catch(e) {
-            return "ERROR:" + e.toString();
-        }
-    }
 
     // =============================================
     // WIRE UP EVENTS
@@ -391,12 +241,13 @@
     };
 
     btnImport.onClick = function() {
-        setStatus("Importing...");
-        runInMainEngine(doImportMain, curvesJsonPath, 
+        setStatus(btnImport.text.indexOf("Update") >= 0 ? "Updating..." : "Importing...");
+        runInMainEngine(doUpdateMain, curvesJsonPath, 
             function(msg) {
-                importStatus.text = "Last Imported: " + nowStr();
-                setStatus("Imported " + msg + " curves OK");
-                alert("Import complete!\n" + msg + " curves imported from Rhino.");
+                importStatus.text = "Last Synced: " + nowStr();
+                setStatus("Sync OK (" + msg + " curves)");
+                btnImport.text = "Update Curves from Rhino";
+                alert("Success!\n" + msg + " curves synced from Rhino.\nIllustrator styling and manual edits were preserved.");
             },
             function(err) {
                 setStatus("Import ERROR");
@@ -405,14 +256,191 @@
         );
     };
 
+    // =============================================
+    // UPDATE CURVES (runs in Main Engine)
+    // =============================================
+    function doUpdateMain(inPath) {
+        try {
+            var file = new File(inPath);
+            if (!file.exists) return "ERROR:Curves file not found.";
+            file.encoding = "UTF-8";
+            file.open("r");
+            var raw = file.read();
+            file.close();
+
+            if (!raw || raw.length === 0) return "ERROR:Curves JSON empty.";
+            
+            var data;
+            try {
+                if (typeof JSON === "object" && JSON.parse) {
+                    data = JSON.parse(raw);
+                } else {
+                    data = eval("(" + raw + ")");
+                }
+            } catch(err) {
+                return "ERROR:Failed to parse JSON.";
+            }
+            
+            if (!data || data.length === 0) return "ERROR:No curve data found.";
+
+            var doc = (app.documents.length > 0) ? app.activeDocument : app.documents.add();
+
+            function ensureLayer(pathName) {
+                var layer = doc;
+                var names = pathName.split("::");
+                for (var i = 0; i < names.length; i++) {
+                    try { layer = layer.layers.getByName(names[i]); }
+                    catch (e) { layer = layer.layers.add(); layer.name = names[i]; }
+                }
+                return layer;
+            }
+            function mmToPt(mm) { return mm * 2.8346456693; }
+            function applyStroke(item, color, width, linetype) {
+                if (!item) return;
+                item.stroked = true;
+                item.filled  = false;
+                if (color && color.length === 3) {
+                    var c = new RGBColor();
+                    c.red = color[0]; c.green = color[1]; c.blue = color[2];
+                    item.strokeColor = c;
+                }
+                item.strokeWidth = (typeof width === "number") ? width : 1.0;
+                var lt = linetype ? linetype.toLowerCase() : "";
+                if      (lt === "dashed")                       { item.strokeDashes = [6, 3]; }
+                else if (lt === "dots")                         { item.strokeDashes = [1, 3]; }
+                else if (lt === "hidden")                       { item.strokeDashes = [2, 2]; }
+                else if (lt === "dashdot" || lt === "center")  { item.strokeDashes = [6, 3, 0, 3]; }
+                else                                            { item.strokeDashes = []; }
+            }
+
+            var totalCurves = 0;
+            var incomingIds = {};
+
+            for (var i = 0; i < data.length; i++) {
+                if (!data[i].curves) continue;
+                for (var j = 0; j < data[i].curves.length; j++) {
+                    if (data[i].curves[j].id) incomingIds[data[i].curves[j].id] = true;
+                }
+            }
+
+            for (var i = 0; i < data.length; i++) {
+                var abData = data[i];
+                var curves = abData.curves;
+                if (!curves) continue;
+
+                for (var j = 0; j < curves.length; j++) {
+                    var curve = curves[j];
+                    if (!curve.points || curve.points.length === 0) continue;
+                    if (!curve.layer) continue;
+
+                    var targetLayer = ensureLayer(curve.layer);
+                    
+                    var pts = [];
+                    for (var k = 0; k < curve.points.length; k++) {
+                        pts.push([mmToPt(curve.points[k][0]), -mmToPt(curve.points[k][1])]);
+                    }
+                    
+                    var existingPath = null;
+                    if (curve.id) {
+                        try { existingPath = doc.pageItems.getByName(curve.id); } 
+                        catch(e) {}
+                    }
+                    
+                    if (existingPath && existingPath.typename === "PathItem") {
+                        if (curve.type === "circle" || curve.type === "ellipse") {
+                            var cx = pts[0][0], cy = pts[0][1];
+                            var r  = (curve.radius !== undefined) ? mmToPt(curve.radius) : mmToPt(1);
+                            var newCirc = targetLayer.pathItems.ellipse(cy + r, cx - r, r * 2, r * 2);
+                            newCirc.name = curve.id;
+                            newCirc.closed = true;
+                            
+                            newCirc.filled = existingPath.filled;
+                            if (existingPath.filled) newCirc.fillColor = existingPath.fillColor;
+                            
+                            newCirc.stroked = existingPath.stroked;
+                            if (existingPath.stroked) {
+                                newCirc.strokeColor = existingPath.strokeColor;
+                                newCirc.strokeWidth = existingPath.strokeWidth;
+                                newCirc.strokeDashes = existingPath.strokeDashes;
+                            }
+                            existingPath.remove();
+                            totalCurves++;
+                            continue;
+                        } else {
+                            var pp = existingPath.pathPoints;
+                            while (pp.length > pts.length) { pp[pp.length - 1].remove(); }
+                            for (var m = 0; m < pp.length; m++) {
+                                pp[m].anchor = pts[m];
+                                pp[m].leftDirection = pts[m];
+                                pp[m].rightDirection = pts[m];
+                            }
+                            for (var m = pp.length; m < pts.length; m++) {
+                                var pt = pp.add();
+                                pt.anchor = pts[m];
+                                pt.leftDirection = pts[m];
+                                pt.rightDirection = pts[m];
+                                pt.pointType = PointType.CORNER;
+                            }
+                            existingPath.closed = (curve.closed === true);
+                            totalCurves++;
+                            continue;
+                        }
+                    }
+                    
+                    if ((curve.type === "circle" || curve.type === "ellipse") && pts.length >= 1) {
+                        var cx = pts[0][0], cy = pts[0][1];
+                        var r  = (curve.radius !== undefined) ? mmToPt(curve.radius) : mmToPt(1);
+                        var circ = targetLayer.pathItems.ellipse(cy + r, cx - r, r * 2, r * 2);
+                        if (curve.id) circ.name = curve.id;
+                        circ.closed = true;
+                        applyStroke(circ, curve.color, curve.width, curve.linetype);
+                    } else if (pts.length >= 2) {
+                        var poly = targetLayer.pathItems.add();
+                        if (curve.id) poly.name = curve.id;
+                        try {
+                            for (var m = 0; m < pts.length; m++) {
+                                var pt = poly.pathPoints.add();
+                                pt.anchor         = [pts[m][0], pts[m][1]];
+                                pt.leftDirection  = pt.anchor;
+                                pt.rightDirection = pt.anchor;
+                                pt.pointType      = PointType.CORNER;
+                            }
+                            var isFill = (curve.type === "hatch_solid" || curve.type === "hatch");
+                            if (isFill) {
+                                poly.closed  = true;
+                                poly.filled  = true;
+                                poly.stroked = false;
+                                var fc = curve.fill_color || curve.color;
+                                if (fc && fc.length === 3) {
+                                    var fillRgb = new RGBColor();
+                                    fillRgb.red = fc[0]; fillRgb.green = fc[1]; fillRgb.blue = fc[2];
+                                    poly.fillColor = fillRgb;
+                                }
+                            } else {
+                                poly.filled  = false;
+                                poly.stroked = true;
+                                poly.closed  = (curve.closed === true);
+                                applyStroke(poly, curve.color, curve.width, curve.linetype);
+                            }
+                        } catch(e) {}
+                    }
+                    totalCurves++;
+                }
+            }
+            app.redraw();
+            return totalCurves.toString();
+        } catch(e) { return "ERROR:" + e.toString(); }
+    }
+
     btnBoth.onClick = function() {
         setStatus("Running sync...");
         runInMainEngine(doExportMain, artboardsJsonPath, 
             function(msg1) {
                 exportStatus.text = "Last Exported: " + nowStr();
-                runInMainEngine(doImportMain, curvesJsonPath, 
+                runInMainEngine(doUpdateMain, curvesJsonPath, 
                     function(msg2) {
-                        importStatus.text = "Last Imported: " + nowStr();
+                        importStatus.text = "Last Synced: " + nowStr();
+                        btnImport.text = "Update Curves from Rhino";
                         setStatus("Sync OK (" + msg2 + " curves)");
                     },
                     function(err2) {
