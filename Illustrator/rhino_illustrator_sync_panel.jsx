@@ -1,44 +1,22 @@
 #target illustrator
+#targetengine "session"
 
 // rhino_illustrator_sync_panel.jsx
 //
 // HOW TO USE:
 //   Run via File > Scripts > Other Script…
-//   The dialog will open — use the buttons to Export/Import, then close when done.
+//   The panel will open and stay on screen (palette mode).
 //   Compatible with Illustrator 2026 (v30+).
 //
 
 (function() {
 
-    // JSON polyfill for older ExtendScript engines
-    if (typeof JSON !== "object") {
-        JSON = {};
-        JSON.stringify = function(obj) {
-            var t = typeof obj;
-            if (t != "object" || obj === null) {
-                if (t == "string") obj = '"' + obj.replace(/\\/g, '\\\\').replace(/"/g, '\\"') + '"';
-                return String(obj);
-            }
-            var n, v, json = [], arr = (obj && obj.constructor == Array);
-            for (n in obj) {
-                if (!obj.hasOwnProperty(n)) continue;
-                v = obj[n]; t = typeof v;
-                if (t == "string") v = '"' + v.replace(/\\/g, '\\\\').replace(/"/g, '\\"') + '"';
-                else if (t == "object" && v !== null) v = JSON.stringify(v);
-                json.push((arr ? "" : '"' + n + '":') + String(v));
-            }
-            return (arr ? "[" : "{") + String(json) + (arr ? "]" : "}");
-        };
-        JSON.parse = function(str) { return eval("(" + str + ")"); };
-    }
-
     var desktopFolder    = Folder.desktop;
     var artboardsJsonPath = desktopFolder.fsName + "/ai_artboards.json";
     var curvesJsonPath    = desktopFolder.fsName + "/rhino_curves.json";
 
-    // Use "dialog" mode for Illustrator 2026 compatibility.
-    // Palette mode with #targetengine "session" loses document access in v30+.
-    var win = new Window("dialog", "Rhino \u2194 Illustrator Sync", undefined);
+    // Use "palette" mode for non-blocking panel
+    var win = new Window("palette", "Rhino \u2194 Illustrator Sync", undefined);
     win.orientation   = "column";
     win.alignChildren = ["fill", "top"];
     win.spacing       = 12;
@@ -141,28 +119,43 @@
         win.update();
     }
 
-    function getDoc() {
-        // Safely get the active document, or null
-        try {
-            if (app.documents.length > 0) {
-                return app.activeDocument;
+    // =============================================
+    // BRIDGETALK: MAIN ENGINE EXECUTION
+    // =============================================
+    // In Illustrator 2026, running DOM commands (app.activeDocument) from a palette UI
+    // inside the session engine throws "there is no document". We bypass this by sending
+    // the heavy lifting to the "main" engine via BridgeTalk.
+
+    var jsonPolyfillStr = "";
+
+    function runInMainEngine(func, argPath, onSuccess, onError) {
+        var bt = new BridgeTalk();
+        bt.target = "illustrator";
+        var scriptStr = "var argPath = '" + argPath.replace(/\\/g, "\\\\") + "';\n" +
+                        "(" + func.toString() + ")(argPath);";
+        bt.body = scriptStr;
+        bt.onResult = function(res) {
+            var msg = res.body;
+            if (msg.indexOf("ERROR:") === 0) {
+                if (onError) onError(msg.substring(6));
+            } else {
+                if (onSuccess) onSuccess(msg);
             }
-        } catch(e) {}
-        return null;
+        };
+        bt.onError = function(err) {
+            if (onError) onError(err.body);
+        };
+        bt.send();
     }
 
     // =============================================
-    // EXPORT ARTBOARDS
+    // EXPORT ARTBOARDS (runs in Main Engine)
     // =============================================
-    function doExport(silent) {
+    function doExportMain(outPath) {
         try {
-            var doc = getDoc();
-            if (!doc) {
-                if (!silent) alert("No document is open in Illustrator.\nPlease open or create a document first.");
-                setStatus("No document open");
-                return false;
-            }
-
+            if (app.documents.length === 0) return "ERROR:No document is open in Illustrator.\nPlease open or create a document first.";
+            var doc = app.activeDocument;
+            
             var list = [];
             var PT2MM = 0.3527777778;
 
@@ -180,69 +173,81 @@
                 });
             }
 
-            var file = new File(artboardsJsonPath);
+            var file = new File(outPath);
             file.encoding = "UTF-8";
             file.open("w");
-            file.write(JSON.stringify(list, null, 2));
+
+            var jsonStr = "[";
+            for (var k = 0; k < list.length; k++) {
+                var obj = list[k];
+                jsonStr += "{";
+                jsonStr += '"name":"' + obj.name.replace(/\\/g, '\\\\').replace(/"/g, '\\"') + '",';
+                jsonStr += '"width_mm":' + obj.width_mm + ',';
+                jsonStr += '"height_mm":' + obj.height_mm + ',';
+                jsonStr += '"left_mm":' + obj.left_mm + ',';
+                jsonStr += '"top_mm":' + obj.top_mm + ',';
+                jsonStr += '"right_mm":' + obj.right_mm + ',';
+                jsonStr += '"bottom_mm":' + obj.bottom_mm;
+                jsonStr += "}";
+                if (k < list.length - 1) jsonStr += ",";
+            }
+            jsonStr += "]";
+
+            file.write(jsonStr);
             file.close();
 
-            exportStatus.text = "Last Exported: " + nowStr();
-            setStatus("Artboards exported OK");
-            if (!silent) {
-                alert("Artboards exported!\n\nSaved to:\n" + artboardsJsonPath + "\n\nNow press 'Import Artboards' in Rhino.");
-            }
-            return true;
+            app.redraw();
+            return "SUCCESS";
         } catch(e) {
-            setStatus("Export ERROR: " + e);
-            if (!silent) alert("Export error:\n" + e);
-            return false;
+            return "ERROR:" + e.toString();
         }
     }
 
     // =============================================
-    // IMPORT CURVES
+    // IMPORT CURVES (runs in Main Engine)
     // =============================================
-    function doImport(silent) {
+    function doImportMain(inPath) {
         try {
-            var file = new File(curvesJsonPath);
-            if (!file.exists) {
-                if (!silent) alert("Curves file not found at:\n" + curvesJsonPath + "\n\nPlease run 'Export Curves' from Rhino first.");
-                return false;
-            }
-
+            var file = new File(inPath);
+            if (!file.exists) return "ERROR:Curves file not found at:\n" + inPath + "\n\nPlease run 'Export Curves' from Rhino first.";
+            
             file.encoding = "UTF-8";
             file.open("r");
             var raw = file.read();
             file.close();
 
-            if (!raw || raw.length === 0) {
-                if (!silent) alert("Curves JSON file is empty.\nPlease export curves from Rhino first.");
-                return false;
+            if (!raw || raw.length === 0) return "ERROR:Curves JSON file is empty.\nPlease export curves from Rhino first.";
+            
+            var data;
+            try {
+                if (typeof JSON === "object" && JSON.parse) {
+                    data = JSON.parse(raw);
+                } else {
+                    data = eval("(" + raw + ")");
+                }
+            } catch(err) {
+                return "ERROR:Failed to parse JSON file.";
             }
+            
+            if (!data || data.length === 0) return "ERROR:No curve data found in JSON file.";
 
-            var data = JSON.parse(raw);
-            if (!data || data.length === 0) {
-                if (!silent) alert("No curve data found in JSON file.");
-                return false;
-            }
-
-            var doc = getDoc();
-            if (!doc) {
+            var doc;
+            if (app.documents.length > 0) {
+                doc = app.activeDocument;
+            } else {
                 doc = app.documents.add();
             }
 
             function ensureLayer(pathName) {
-                var parts  = pathName.split("::");
-                var parent = doc.layers;
-                var layer;
-                for (var i = 0; i < parts.length; i++) {
+                var layer = doc;
+                var names = pathName.split("::");
+                for (var i = 0; i < names.length; i++) {
                     try {
-                        layer = parent.getByName(parts[i]);
-                    } catch(e) {
-                        layer = parent.add();
-                        layer.name = parts[i];
+                        layer = layer.layers.getByName(names[i]);
+                    } catch (e) {
+                        layer = layer.layers.add();
+                        layer.name = names[i];
                     }
-                    parent = layer.layers;
                 }
                 return layer;
             }
@@ -282,13 +287,12 @@
 
                     var targetLayer = ensureLayer(curve.layer);
 
-                    // Clear the target sublayer once per session
-                    var layerPath = targetLayer.name;
-                    if (!clearedLayers[layerPath]) {
-                        for (var p = targetLayer.pageItems.length - 1; p >= 0; p--) {
-                            targetLayer.pageItems[p].remove();
+                    // Clear target layer before adding new curves
+                    if (!clearedLayers[curve.layer]) {
+                        while (targetLayer.pageItems.length > 0) {
+                            targetLayer.pageItems[0].remove();
                         }
-                        clearedLayers[layerPath] = true;
+                        clearedLayers[curve.layer] = true;
                     }
 
                     var pts = [];
@@ -305,33 +309,49 @@
                     } else if (pts.length >= 2) {
                         var poly = targetLayer.pathItems.add();
                         try {
-                            poly.filled  = false;
-                            poly.stroked = true;
-                            poly.closed  = (curve.closed === true);
+                            // hatch_solid = solid filled polygon (Export as solid fill option)
+                            // hatch       = legacy filled polygon
+                            var isFill = (curve.type === "hatch_solid" || curve.type === "hatch");
+
+                            // Add points FIRST (Illustrator needs geometry before fill/stroke)
                             for (var m = 0; m < pts.length; m++) {
                                 var pt = poly.pathPoints.add();
-                                pt.anchor = [pts[m][0], pts[m][1]];
+                                pt.anchor         = [pts[m][0], pts[m][1]];
                                 pt.leftDirection  = pt.anchor;
                                 pt.rightDirection = pt.anchor;
-                                pt.pointType = PointType.CORNER;
+                                pt.pointType      = PointType.CORNER;
                             }
-                            applyStroke(poly, curve.color, curve.width, curve.linetype);
+
+                            // Now apply fill or stroke
+                            if (isFill) {
+                                poly.closed  = true;
+                                poly.filled  = true;
+                                poly.stroked = false;
+                                // Prefer fill_color field, fall back to color
+                                var fc = curve.fill_color || curve.color;
+                                if (fc && fc.length === 3) {
+                                    var fillRgb = new RGBColor();
+                                    fillRgb.red   = fc[0];
+                                    fillRgb.green = fc[1];
+                                    fillRgb.blue  = fc[2];
+                                    poly.fillColor = fillRgb;
+                                }
+                            } else {
+                                poly.filled  = false;
+                                poly.stroked = true;
+                                poly.closed  = (curve.closed === true);
+                                applyStroke(poly, curve.color, curve.width, curve.linetype);
+                            }
                         } catch(e) { /* skip bad paths */ }
                     }
                     totalCurves++;
                 }
             }
 
-            importStatus.text = "Last Imported: " + nowStr();
-            setStatus("Imported " + totalCurves + " curves OK");
-            if (!silent) {
-                alert("Import complete!\n" + totalCurves + " curves imported from Rhino.");
-            }
-            return true;
+            app.redraw();
+            return totalCurves.toString();
         } catch(e) {
-            setStatus("Import ERROR: " + e);
-            if (!silent) alert("Import error:\n" + e);
-            return false;
+            return "ERROR:" + e.toString();
         }
     }
 
@@ -355,12 +375,57 @@
         }
     };
 
-    btnExport.onClick = function() { doExport(false); };
-    btnImport.onClick = function() { doImport(false); };
-    btnBoth.onClick   = function() {
+    btnExport.onClick = function() {
+        setStatus("Exporting...");
+        runInMainEngine(doExportMain, artboardsJsonPath, 
+            function(msg) {
+                exportStatus.text = "Last Exported: " + nowStr();
+                setStatus("Artboards exported OK");
+                alert("Artboards exported!\n\nSaved to:\n" + artboardsJsonPath + "\n\nNow press 'Import Artboards' in Rhino.");
+            },
+            function(err) {
+                setStatus("Export ERROR");
+                alert("Export error:\n" + err);
+            }
+        );
+    };
+
+    btnImport.onClick = function() {
+        setStatus("Importing...");
+        runInMainEngine(doImportMain, curvesJsonPath, 
+            function(msg) {
+                importStatus.text = "Last Imported: " + nowStr();
+                setStatus("Imported " + msg + " curves OK");
+                alert("Import complete!\n" + msg + " curves imported from Rhino.");
+            },
+            function(err) {
+                setStatus("Import ERROR");
+                alert("Import error:\n" + err);
+            }
+        );
+    };
+
+    btnBoth.onClick = function() {
         setStatus("Running sync...");
-        doExport(false);
-        doImport(false);
+        runInMainEngine(doExportMain, artboardsJsonPath, 
+            function(msg1) {
+                exportStatus.text = "Last Exported: " + nowStr();
+                runInMainEngine(doImportMain, curvesJsonPath, 
+                    function(msg2) {
+                        importStatus.text = "Last Imported: " + nowStr();
+                        setStatus("Sync OK (" + msg2 + " curves)");
+                    },
+                    function(err2) {
+                        setStatus("Import ERROR during sync");
+                        alert("Import error:\n" + err2);
+                    }
+                );
+            },
+            function(err1) {
+                setStatus("Export ERROR during sync");
+                alert("Export error:\n" + err1);
+            }
+        );
     };
 
     btnClose.onClick = function() { win.close(); };

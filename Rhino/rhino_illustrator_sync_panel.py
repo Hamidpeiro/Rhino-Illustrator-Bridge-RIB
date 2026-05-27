@@ -18,7 +18,7 @@ class RhinoSyncPanel(forms.Form):
     def __init__(self):
         super().__init__()
         self.Title = "Rhino <-> Illustrator"
-        self.ClientSize = drawing.Size(300, 240)
+        self.ClientSize = drawing.Size(300, 310)
         self.Padding = drawing.Padding(12)
         self.Resizable = False
         
@@ -65,6 +65,24 @@ class RhinoSyncPanel(forms.Form):
         self.chk_auto_export = forms.CheckBox()
         self.chk_auto_export.Text = "Auto-Send (Watch Rhino Curves)"
         self.chk_auto_export.ToolTip = "Automatically export curves when changes are detected in the Artboards sublayers."
+
+        # Hatch Export Options
+        self.chk_hatch_solid = forms.CheckBox()
+        self.chk_hatch_solid.Text = "Export hatches as solid fills"
+        self.chk_hatch_solid.Checked = True
+        self.chk_hatch_solid.ToolTip = (
+            "Export all hatches as closed filled polygons using the hatch object's colour. "
+            "Matches Rhino's 'Hatches exported as solid fills' option."
+        )
+
+        self.chk_hatch_explode = forms.CheckBox()
+        self.chk_hatch_explode.Text = "Explode hatches (auto-detect solid)"
+        self.chk_hatch_explode.Checked = False
+        self.chk_hatch_explode.ToolTip = (
+            "Explode each hatch into its boundary curves. "
+            "If the hatch pattern is Solid, it is still exported as a filled polygon. "
+            "Otherwise each boundary loop is exported as a separate open/closed curve."
+        )
         
         # Footer / Status
         self.lbl_status = forms.Label()
@@ -89,6 +107,10 @@ class RhinoSyncPanel(forms.Form):
         
         layout.AddRow(self.chk_auto_import)
         layout.AddRow(self.chk_auto_export)
+        layout.AddRow(self.create_divider())
+
+        layout.AddRow(self.chk_hatch_solid)
+        layout.AddRow(self.chk_hatch_explode)
         layout.AddRow(self.create_divider())
         
         layout.AddRow(self.lbl_status)
@@ -119,8 +141,7 @@ class RhinoSyncPanel(forms.Form):
         # Calculate a signature of all unlocked curves in the document based on physical attributes
         all_objs = []
         all_objs += rs.ObjectsByType(4, select=False) or []      # Curve
-        all_objs += rs.ObjectsByType(8192, select=False) or []   # Polyline
-        all_objs += rs.ObjectsByType(8, select=False) or []      # TextCurve
+        all_objs += rs.ObjectsByType(65536, select=False) or []  # Hatch
         
         signature = {}
         for obj in all_objs:
@@ -233,7 +254,102 @@ class RhinoSyncPanel(forms.Form):
         if not silent:
             Rhino.UI.Dialogs.ShowMessageBox("✅ Imported {} artboards successfully!".format(len(artboards)), "Success")
 
+    def _is_solid_hatch(self, obj):
+        """
+        Determines if a hatch object has a Solid fill pattern.
+        """
+        try:
+            # Solid hatches may have no pattern index (None) or a pattern named "Solid"
+            pattern_idx = rs.HatchPattern(obj)
+            if pattern_idx is None:
+                return True
+            pattern_name = rs.HatchPatternName(pattern_idx)
+            if pattern_name:
+                if "solid" in pattern_name.lower():
+                    return True
+                # Check fill type: 0 = solid
+                try:
+                    fill_type = rs.HatchPatternFillType(pattern_name)
+                    if fill_type == 0:
+                        return True
+                except Exception:
+                    pass
+        except Exception:
+            pass
+        return False
+
+    def _get_hatch_outer_boundary(self, obj):
+        """
+        Returns the OUTER boundary loop(s) of a hatch as lists of [x, y] pairs.
+        Uses RhinoCommon Hatch.Get3dCurves(True) which returns the closed
+        boundary curve(s), NOT the internal fill lines that rs.ExplodeHatch returns.
+        """
+        loops = []
+        try:
+            # Get the RhinoCommon geometry via scriptcontext
+            rhino_obj = scriptcontext.doc.Objects.Find(obj)
+            if not rhino_obj:
+                return loops
+            hatch_geo = rhino_obj.Geometry
+            if not hasattr(hatch_geo, "Get3dCurves"):
+                return loops
+
+            # True = outer boundary curves
+            outer_curves = hatch_geo.Get3dCurves(True)
+            if not outer_curves:
+                return loops
+
+            for crv in outer_curves:
+                # Try polyline first
+                result, polyline = crv.TryGetPolyline()
+                if result and polyline and polyline.Count >= 2:
+                    loops.append([[float(pt.X), float(pt.Y)] for pt in polyline])
+                else:
+                    # Divide the curve into points
+                    params = crv.DivideByCount(64, True)
+                    if params:
+                        pts = [crv.PointAt(t) for t in params]
+                        if len(pts) >= 2:
+                            loops.append([[float(pt.X), float(pt.Y)] for pt in pts])
+        except Exception:
+            pass
+        return loops
+
+    def _get_hatch_boundary_loops(self, obj):
+        """
+        Explode hatch into its fill lines (for explode-mode export).
+        Returns a list of loops, each a list of [x, y] pairs.
+        """
+        loops = []
+        try:
+            exploded = rs.ExplodeHatch(obj)
+            if not exploded:
+                return loops
+            for c in exploded:
+                if rs.IsCurve(c):
+                    pts = rs.CurvePoints(c)
+                    if pts and len(pts) >= 2:
+                        loops.append([[float(p.X), float(p.Y)] for p in pts])
+                    else:
+                        num_pts = max(64, (rs.CurvePointCount(c) or 1) * 10)
+                        div_pts = rs.DivideCurve(c, num_pts)
+                        if div_pts and len(div_pts) >= 2:
+                            loops.append([[float(p.X), float(p.Y)] for p in div_pts])
+            rs.DeleteObjects(exploded)
+        except Exception:
+            pass
+        return loops
+
     def export_curves(self, silent=False):
+        try:
+            self._export_curves_internal(silent)
+        except Exception as e:
+            import traceback
+            err_msg = traceback.format_exc()
+            Rhino.UI.Dialogs.ShowMessageBox("CRASH in export_curves:\n" + err_msg, "Fatal Error")
+            self.lbl_status.Text = "Status: Export crashed"
+
+    def _export_curves_internal(self, silent=False):
         parent_layer = "Artboards"
         if not rs.IsLayer(parent_layer):
             if not silent:
@@ -248,11 +364,13 @@ class RhinoSyncPanel(forms.Form):
             self.lbl_status.Text = "Status: No artboards"
             return
 
+        hatch_as_solid = bool(self.chk_hatch_solid.Checked)
+        hatch_explode = bool(self.chk_hatch_explode.Checked)
+
         result = []
         all_objs = []
         all_objs += rs.ObjectsByType(4, select=False) or []      # Curve
-        all_objs += rs.ObjectsByType(8192, select=False) or []   # Polyline
-        all_objs += rs.ObjectsByType(8, select=False) or []      # TextCurve
+        all_objs += rs.ObjectsByType(65536, select=False) or []  # Hatch
 
         for sub_layer in sublayers:
             rects = rs.ObjectsByLayer(sub_layer)
@@ -288,59 +406,9 @@ class RhinoSyncPanel(forms.Form):
                 cx = [p.X for p in obj_bbox]
                 cy = [p.Y for p in obj_bbox]
 
-                # Check if object is inside the artboard bounding box
-                if (min(cx) >= min_x and max(cx) <= max_x and
-                    min(cy) >= min_y and max(cy) <= max_y):
-
-                    obj_type = "curve"
-                    pts_list = []
-                    radius_val = None
-
-                    # Circles — check BEFORE NURBS (circles are degree-2 NURBS in Rhino)
-                    if rs.IsCircle(obj):
-                        center = rs.CircleCenterPoint(obj)
-                        radius_val = float(rs.CircleRadius(obj))
-                        pts_list = [[float(center.X), float(center.Y)], [float(center.X) + radius_val, float(center.Y)]]
-                        obj_type = "circle"
-
-                    # Ellipses — check BEFORE NURBS
-                    elif rs.IsEllipse(obj):
-                        plane, rx, ry = rs.SurfaceEvaluate(obj, [0, 0], 0) if False else (None, 0, 0)
-                        try:
-                            import Rhino.Geometry as rg
-                            curve_obj = rs.coercecurve(obj)
-                            result, ellipse = curve_obj.TryGetEllipse()
-                            if result:
-                                center = ellipse.Plane.Origin
-                                radius_val = float(ellipse.Radius1)
-                                r2 = float(ellipse.Radius2)
-                                pts_list = [[float(center.X), float(center.Y)], [float(center.X) + radius_val, float(center.Y)]]
-                                obj_type = "ellipse"
-                        except:
-                            # Fallback: treat as NURBS
-                            num_pts = max(100, rs.CurvePointCount(obj) * 5)
-                            pts = rs.DivideCurve(obj, num_pts)
-                            if pts:
-                                pts_list = [[float(pt.X), float(pt.Y)] for pt in pts]
-                            obj_type = "nurbs"
-
-                    # Smooth NURBS / splines
-                    elif rs.IsCurve(obj) and rs.CurveDegree(obj) > 1:
-                        num_pts = max(100, rs.CurvePointCount(obj) * 5)
-                        pts = rs.DivideCurve(obj, num_pts)
-                        if pts:
-                            pts_list = [[float(pt.X), float(pt.Y)] for pt in pts]
-                        obj_type = "nurbs"
-
-                    # Straight polylines / lines
-                    elif rs.IsCurve(obj) and rs.CurveDegree(obj) == 1:
-                        pts = rs.CurvePoints(obj)
-                        if pts:
-                            pts_list = [[float(pt.X), float(pt.Y)] for pt in pts]
-                        obj_type = "polyline"
-
-                    # Mirror curves for Illustrator
-                    pts_list = [[float(x), float(-y)] for x, y in pts_list]
+                # Check if object bounding box intersects the artboard bounding box
+                if not (max(cx) < min_x or min(cx) > max_x or
+                        max(cy) < min_y or min(cy) > max_y):
 
                     color = rs.ObjectColor(obj)
                     width = rs.ObjectPrintWidth(obj)
@@ -348,20 +416,145 @@ class RhinoSyncPanel(forms.Form):
 
                     color_rgb = [int(color.R), int(color.G), int(color.B)] if color else [0, 0, 0]
                     width_val = float(width) if width else 1.0
-                    linetype_val = str(linetype) if linetype else "Continuous"
+                    linetype_v = str(linetype) if linetype else "Continuous"
+                    layer_name = str(rs.ObjectLayer(obj))
+                    if layer_name.startswith("Artboards::"):
+                        layer_name = layer_name.replace("Artboards::", "", 1)
 
-                    shape_data = {
-                        "layer": str(rs.ObjectLayer(obj)),
-                        "type": str(obj_type),
-                        "closed": bool(rs.IsCurveClosed(obj)),
-                        "points": pts_list,
-                        "color": color_rgb,
-                        "width": width_val,
-                        "linetype": linetype_val
-                    }
-                    if radius_val is not None:
-                        shape_data["radius"] = radius_val
-                    shapes.append(shape_data)
+                    # ---------- HATCH handling ----------
+                    if rs.IsHatch(obj):
+                        # Option 1: Export as solid fills (use outer boundary, not fill lines)
+                        if hatch_as_solid:
+                            loops = self._get_hatch_outer_boundary(obj)
+                            if not loops:
+                                continue
+                            for loop in loops:
+                                if len(loop) < 2:
+                                    continue
+                                # Mirror Y for Illustrator
+                                mirrored = [[float(x), float(-y)] for x, y in loop]
+                                shapes.append({
+                                    "layer":      layer_name,
+                                    "type":       "hatch_solid",
+                                    "closed":     True,
+                                    "points":     mirrored,
+                                    "color":      color_rgb,
+                                    "fill_color": color_rgb,
+                                    "width":      width_val,
+                                    "linetype":   linetype_v
+                                })
+                            continue
+
+                        # Option 2: Explode hatches (auto-detect solid)
+                        if hatch_explode:
+                            is_solid = self._is_solid_hatch(obj)
+                            # Try to get appropriate loops
+                            if is_solid:
+                                # Solid hatch - use outer boundary
+                                loops = self._get_hatch_outer_boundary(obj)
+                            else:
+                                # Non-solid hatch - explode into pattern lines
+                                loops = self._get_hatch_boundary_loops(obj)
+                            # Fallback: if no loops were retrieved, try outer boundary anyway
+                            if not loops:
+                                loops = self._get_hatch_outer_boundary(obj)
+                                is_solid = True  # If explode failed, it is a solid hatch
+                            if not loops:
+                                continue
+                            for loop in loops:
+                                if len(loop) < 2:
+                                    continue
+                                mirrored = [[float(x), float(-y)] for x, y in loop]
+                                if is_solid:
+                                    # Solid hatch - filled polygon
+                                    shapes.append({
+                                        "layer":    layer_name,
+                                        "type":     "hatch_solid",
+                                        "closed":   True,
+                                        "points":   mirrored,
+                                        "color":    color_rgb,
+                                        "fill_color": color_rgb,
+                                        "width":    width_val,
+                                        "linetype": linetype_v
+                                    })
+                                else:
+                                    # Non-solid hatch - boundary curves (stroked)
+                                    shapes.append({
+                                        "layer":    layer_name,
+                                        "type":     "polyline",
+                                        "closed":   True,
+                                        "points":   mirrored,
+                                        "color":    color_rgb,
+                                        "width":    width_val,
+                                        "linetype": linetype_v
+                                    })
+                            continue
+
+                    # ---------- CURVE handling ----------
+                    elif rs.IsCurve(obj):
+                        obj_type = "polyline"
+                        pts_list = []
+                        radius_val = None
+
+                        # Circles
+                        if rs.IsCircle(obj):
+                            center = rs.CircleCenterPoint(obj)
+                            radius_val = float(rs.CircleRadius(obj))
+                            pts_list = [[float(center.X), float(center.Y)], [float(center.X) + radius_val, float(center.Y)]]
+                            obj_type = "circle"
+
+                        # Ellipses
+                        elif rs.IsEllipse(obj):
+                            try:
+                                curve_obj = rs.coercecurve(obj)
+                                result_val, ellipse = curve_obj.TryGetEllipse()
+                                if result_val:
+                                    center = ellipse.Plane.Origin
+                                    radius_val = float(ellipse.Radius1)
+                                    pts_list = [[float(center.X), float(center.Y)], [float(center.X) + radius_val, float(center.Y)]]
+                                    obj_type = "ellipse"
+                            except:
+                                # Fallback: treat as NURBS
+                                num_pts = max(100, rs.CurvePointCount(obj) * 5)
+                                pts = rs.DivideCurve(obj, num_pts)
+                                if pts:
+                                    pts_list = [[float(pt.X), float(pt.Y)] for pt in pts]
+                                obj_type = "nurbs"
+
+                        # Smooth NURBS / splines
+                        elif rs.CurveDegree(obj) > 1:
+                            num_pts = max(100, rs.CurvePointCount(obj) * 5)
+                            pts = rs.DivideCurve(obj, num_pts)
+                            if pts:
+                                pts_list = [[float(pt.X), float(pt.Y)] for pt in pts]
+                            obj_type = "nurbs"
+
+                        # Straight polylines / lines
+                        elif rs.CurveDegree(obj) == 1:
+                            pts = rs.CurvePoints(obj)
+                            if pts:
+                                pts_list = [[float(pt.X), float(pt.Y)] for pt in pts]
+                            obj_type = "polyline"
+
+                        # Mirror curves for Illustrator
+                        pts_list = [[float(x), float(-y)] for x, y in pts_list]
+                        try:
+                            closed_val = bool(rs.IsCurveClosed(obj))
+                        except:
+                            closed_val = False
+
+                        shape_data = {
+                            "layer":    layer_name,
+                            "type":     str(obj_type),
+                            "closed":   closed_val,
+                            "points":   pts_list,
+                            "color":    color_rgb,
+                            "width":    width_val,
+                            "linetype": linetype_v
+                        }
+                        if radius_val is not None:
+                            shape_data["radius"] = radius_val
+                        shapes.append(shape_data)
 
             result.append({
                 "artboard": sub_layer.split("::")[-1],
@@ -384,6 +577,7 @@ class RhinoSyncPanel(forms.Form):
         
         if not silent:
             Rhino.UI.Dialogs.ShowMessageBox("✅ Exported {} artboards with {} shapes successfully!".format(len(result), total_shapes), "Success")
+
 
 # Main Execution flow
 if __name__ in ("__main__", "Rhino3D_System"):
