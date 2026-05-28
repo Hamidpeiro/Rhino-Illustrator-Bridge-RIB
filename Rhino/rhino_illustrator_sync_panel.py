@@ -52,6 +52,12 @@ class RhinoSyncPanel(forms.Form):
         self.btn_import.Height = 28
         self.btn_import.Click += self.on_import_click
         
+        self.chk_export_pics = forms.CheckBox()
+        self.chk_export_pics.Text = "Export Pictures"
+        self.chk_export_pics.Checked = False
+        self.chk_export_pics.Height = 26
+        self.chk_export_pics.Width = 150
+        
         self.btn_export = forms.Button()
         self.btn_export.Text = "📤 Export Curves"
         self.btn_export.Height = 28
@@ -103,6 +109,7 @@ class RhinoSyncPanel(forms.Form):
         
         layout.AddRow(self.btn_import)
         layout.AddRow(self.btn_export)
+        layout.AddRow(self.chk_export_pics)
         layout.AddRow(self.create_divider())
         
         layout.AddRow(self.chk_auto_import)
@@ -254,6 +261,54 @@ class RhinoSyncPanel(forms.Form):
         if not silent:
             Rhino.UI.Dialogs.ShowMessageBox("✅ Imported {} artboards successfully!".format(len(artboards)), "Success")
 
+    def _is_picture_frame(self, obj):
+        """
+        Check if an object is a picture frame using RhinoCommon.
+        Picture frames are single-face Breps with a bitmap texture material.
+        """
+        try:
+            rhino_obj = scriptcontext.doc.Objects.Find(obj)
+            if not rhino_obj:
+                return False
+            geo = rhino_obj.Geometry
+            if not isinstance(geo, Rhino.Geometry.Brep):
+                return False
+            if geo.Faces.Count != 1:
+                return False
+            attr = rhino_obj.Attributes
+            mat_idx = attr.MaterialIndex
+            if mat_idx < 0:
+                return False
+            mat = scriptcontext.doc.Materials[mat_idx]
+            if mat is None:
+                return False
+            tex = mat.GetBitmapTexture()
+            return tex is not None and tex.FileName is not None and len(tex.FileName) > 0
+        except Exception:
+            return False
+
+    def _get_picture_image_path(self, obj):
+        """
+        Get the image file path from a picture frame using RhinoCommon.
+        """
+        try:
+            rhino_obj = scriptcontext.doc.Objects.Find(obj)
+            if not rhino_obj:
+                return None
+            attr = rhino_obj.Attributes
+            mat_idx = attr.MaterialIndex
+            if mat_idx < 0:
+                return None
+            mat = scriptcontext.doc.Materials[mat_idx]
+            if mat is None:
+                return None
+            tex = mat.GetBitmapTexture()
+            if tex and tex.FileName:
+                return tex.FileName
+            return None
+        except Exception:
+            return None
+
     def _is_solid_hatch(self, obj):
         """
         Determines if a hatch object has a Solid fill pattern.
@@ -370,6 +425,7 @@ class RhinoSyncPanel(forms.Form):
         result = []
         all_objs = []
         all_objs += rs.ObjectsByType(4, select=False) or []      # Curve
+        all_objs += rs.ObjectsByType(8, select=False) or []      # Surface (PictureFrames)
         all_objs += rs.ObjectsByType(65536, select=False) or []  # Hatch
 
         for sub_layer in sublayers:
@@ -405,15 +461,45 @@ class RhinoSyncPanel(forms.Form):
                     continue
                 cx = [p.X for p in obj_bbox]
                 cy = [p.Y for p in obj_bbox]
+                layer_name = str(rs.ObjectLayer(obj))
+                if layer_name.startswith("Artboards::"):
+                    layer_name = layer_name.replace("Artboards::", "", 1)
+                
+                if self.chk_export_pics.Checked and self._is_picture_frame(obj):
+                    # Export picture frame as an image reference
+                    img_path = self._get_picture_image_path(obj)
+                    if img_path:
+                        # Bounding box of the picture frame
+                        pic_bbox = rs.BoundingBox(obj)
+                        if pic_bbox:
+                            # Compute min/max from all bbox points
+                            bx = [float(p.X) for p in pic_bbox]
+                            by = [float(p.Y) for p in pic_bbox]
+                            pic_left = min(bx)
+                            pic_right = max(bx)
+                            pic_bottom = min(by)
+                            pic_top = max(by)
+                            pic_width = pic_right - pic_left
+                            pic_height = pic_top - pic_bottom
+                            # Mirror Y for Illustrator: top becomes -top
+                            shape = {
+                                "id": str(obj),
+                                "layer": layer_name,
+                                "type": "picture",
+                                "left": pic_left,
+                                "top": float(-pic_top),
+                                "width": pic_width,
+                                "height": pic_height,
+                                "image": img_path
+                            }
+                            shapes.append(shape)
+                    continue
 
-                # Check if object bounding box intersects the artboard bounding box
-                if not (max(cx) < min_x or min(cx) > max_x or
-                        max(cy) < min_y or min(cy) > max_y):
-
+                # Only keep objects fully inside the artboard
+                if (min(cx) >= min_x and max(cx) <= max_x and min(cy) >= min_y and max(cy) <= max_y):
                     color = rs.ObjectColor(obj)
                     width = rs.ObjectPrintWidth(obj)
                     linetype = rs.ObjectLinetype(obj)
-
                     color_rgb = [int(color.R), int(color.G), int(color.B)] if color else [0, 0, 0]
                     width_val = float(width) if width else 1.0
                     linetype_v = str(linetype) if linetype else "Continuous"

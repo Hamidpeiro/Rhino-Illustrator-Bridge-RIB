@@ -330,11 +330,40 @@
 
                 for (var j = 0; j < curves.length; j++) {
                     var curve = curves[j];
-                    if (!curve.points || curve.points.length === 0) continue;
                     if (!curve.layer) continue;
-
                     var targetLayer = ensureLayer(curve.layer);
-                    
+
+                    // Picture handling: place image (no points needed)
+                    if (curve.type === "picture" && curve.image) {
+                        try {
+                            var imgFile = new File(curve.image);
+                            if (imgFile.exists) {
+                                // Remove existing placed item with same id
+                                if (curve.id) {
+                                    try {
+                                        var existingPic = doc.pageItems.getByName(curve.id);
+                                        if (existingPic) existingPic.remove();
+                                    } catch(e) {}
+                                }
+                                var placed = doc.placedItems.add();
+                                placed.file = imgFile;
+                                var picLeft = mmToPt(curve.left);
+                                var picTop = -mmToPt(curve.top);
+                                var picWidth = mmToPt(curve.width);
+                                var picHeight = mmToPt(curve.height);
+                                placed.position = [picLeft, picTop];
+                                placed.width = picWidth;
+                                placed.height = picHeight;
+                                if (curve.id) placed.name = curve.id;
+                                placed.move(targetLayer, ElementPlacement.PLACEATEND);
+                            }
+                        } catch (e) {}
+                        totalCurves++;
+                        continue;
+                    }
+
+                    if (!curve.points || curve.points.length === 0) continue;
+
                     var pts = [];
                     for (var k = 0; k < curve.points.length; k++) {
                         pts.push([mmToPt(curve.points[k][0]), -mmToPt(curve.points[k][1])]);
