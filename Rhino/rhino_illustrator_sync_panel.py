@@ -18,9 +18,9 @@ class RhinoSyncPanel(forms.Form):
     def __init__(self):
         super().__init__()
         self.Title = "Rhino <-> Illustrator"
-        self.ClientSize = drawing.Size(300, 310)
+        self.ClientSize = drawing.Size(300, 340)
         self.Padding = drawing.Padding(12)
-        self.Resizable = False
+        self.Resizable = True
         
         # Paths
         self.desktop_path = os.path.expanduser("~/Desktop")
@@ -63,19 +63,41 @@ class RhinoSyncPanel(forms.Form):
         self.btn_export.Height = 28
         self.btn_export.Click += self.on_export_click
         
-        # Options Checkboxes
-        self.chk_auto_import = forms.CheckBox()
-        self.chk_auto_import.Text = "Auto-Receive (Watch Artboards)"
-        self.chk_auto_import.ToolTip = "Automatically import artboards when Illustrator updates them."
-        
-        self.chk_auto_export = forms.CheckBox()
-        self.chk_auto_export.Text = "Auto-Send (Watch Rhino Curves)"
-        self.chk_auto_export.ToolTip = "Automatically export curves when changes are detected in the Artboards sublayers."
+        # Annotation Export Options
+        self.lbl_annot_title = forms.Label()
+        self.lbl_annot_title.Text = "Annotation Export:"
+        self.lbl_annot_title.Font = drawing.Font("Arial", 9, drawing.FontStyle.Bold)
+
+        self._annot_changing = False
+
+        self.chk_annot_group = forms.CheckBox()
+        self.chk_annot_group.Text = "Group"
+        self.chk_annot_group.Checked = True
+        self.chk_annot_group.CheckedChanged += self.on_annot_group_changed
+        self.chk_annot_group.ToolTip = "Export each annotation as a grouped set of lines and text."
+
+        self.chk_annot_ungroup = forms.CheckBox()
+        self.chk_annot_ungroup.Text = "Ungroup"
+        self.chk_annot_ungroup.Checked = False
+        self.chk_annot_ungroup.CheckedChanged += self.on_annot_ungroup_changed
+        self.chk_annot_ungroup.ToolTip = "Export each annotation's lines and text as separate, ungrouped items."
 
         # Hatch Export Options
+        self.lbl_hatch_title = forms.Label()
+        self.lbl_hatch_title.Text = "Hatch Export:"
+        self.lbl_hatch_title.Font = drawing.Font("Arial", 9, drawing.FontStyle.Bold)
+        
+        self.chk_hatch_none = forms.CheckBox()
+        self.chk_hatch_none.Text = "None"
+        self.chk_hatch_none.Checked = False
+        self.chk_hatch_none.CheckedChanged += self.on_none_changed
+        
+        self._hatch_changing = False
+
         self.chk_hatch_solid = forms.CheckBox()
         self.chk_hatch_solid.Text = "Export hatches as solid fills"
         self.chk_hatch_solid.Checked = True
+        self.chk_hatch_solid.CheckedChanged += self.on_solid_changed
         self.chk_hatch_solid.ToolTip = (
             "Export all hatches as closed filled polygons using the hatch object's colour. "
             "Matches Rhino's 'Hatches exported as solid fills' option."
@@ -84,6 +106,7 @@ class RhinoSyncPanel(forms.Form):
         self.chk_hatch_explode = forms.CheckBox()
         self.chk_hatch_explode.Text = "Explode hatches (auto-detect solid)"
         self.chk_hatch_explode.Checked = False
+        self.chk_hatch_explode.CheckedChanged += self.on_explode_changed
         self.chk_hatch_explode.ToolTip = (
             "Explode each hatch into its boundary curves. "
             "If the hatch pattern is Solid, it is still exported as a filled polygon. "
@@ -111,32 +134,28 @@ class RhinoSyncPanel(forms.Form):
         layout.AddRow(self.btn_export)
         layout.AddRow(self.chk_export_pics)
         layout.AddRow(self.create_divider())
-        
-        layout.AddRow(self.chk_auto_import)
-        layout.AddRow(self.chk_auto_export)
-        layout.AddRow(self.create_divider())
 
+        # Hatch settings
+        layout.AddRow(self.lbl_hatch_title)
         layout.AddRow(self.chk_hatch_solid)
         layout.AddRow(self.chk_hatch_explode)
+        layout.AddRow(self.chk_hatch_none)
+        layout.AddRow(self.create_divider())
+
+        # Annotation settings
+        layout.AddRow(self.lbl_annot_title)
+        layout.AddRow(self.chk_annot_group, self.chk_annot_ungroup)
         layout.AddRow(self.create_divider())
         
         layout.AddRow(self.lbl_status)
         
         self.Content = layout
         
-        # Set up a timer for background Auto-Sync (runs every 1000ms)
-        self.timer = forms.UITimer()
-        self.timer.Interval = 1.0 # 1 second
-        self.timer.Elapsed += self.on_timer_tick
-        self.timer.Start()
+        # Trigger initial UI state for hatch settings
+        self.on_none_changed(None, None)
         
-        # Bind close event to cleanly stop timer
+        # Bind close event
         self.Closed += self.on_form_closed
-        
-        # Initialize watch parameters
-        if os.path.exists(self.ai_artboards_file):
-            self.last_ai_mod_time = os.path.getmtime(self.ai_artboards_file)
-        self.last_rhino_signature = self.get_rhino_curves_signature()
 
     def create_divider(self):
         divider = forms.Panel()
@@ -148,7 +167,9 @@ class RhinoSyncPanel(forms.Form):
         # Calculate a signature of all unlocked curves in the document based on physical attributes
         all_objs = []
         all_objs += rs.ObjectsByType(4, select=False) or []      # Curve
-        all_objs += rs.ObjectsByType(65536, select=False) or []  # Hatch
+        if not self.chk_hatch_none.Checked:
+            all_objs += rs.ObjectsByType(65536, select=False) or []  # Hatch
+        all_objs += rs.ObjectsByType(512, select=False) or []    # Annotation
         
         signature = {}
         for obj in all_objs:
@@ -176,34 +197,60 @@ class RhinoSyncPanel(forms.Form):
         import System
         Rhino.RhinoApp.InvokeOnUiThread(System.Action(lambda: self.export_curves(silent=False)))
 
+    def on_none_changed(self, sender, e):
+        is_none = bool(self.chk_hatch_none.Checked)
+        self.chk_hatch_solid.Enabled = not is_none
+        self.chk_hatch_explode.Enabled = not is_none
+
+    def on_solid_changed(self, sender, e):
+        if self._hatch_changing: return
+        if self.chk_hatch_solid.Checked:
+            self._hatch_changing = True
+            self.chk_hatch_explode.Checked = False
+            self._hatch_changing = False
+        elif not self.chk_hatch_explode.Checked:
+            self._hatch_changing = True
+            self.chk_hatch_solid.Checked = True
+            self._hatch_changing = False
+
+    def on_explode_changed(self, sender, e):
+        if self._hatch_changing: return
+        if self.chk_hatch_explode.Checked:
+            self._hatch_changing = True
+            self.chk_hatch_solid.Checked = False
+            self._hatch_changing = False
+        elif not self.chk_hatch_solid.Checked:
+            self._hatch_changing = True
+            self.chk_hatch_explode.Checked = True
+            self._hatch_changing = False
+
+    def on_annot_group_changed(self, sender, e):
+        if self._annot_changing:
+            return
+        if self.chk_annot_group.Checked:
+            self._annot_changing = True
+            self.chk_annot_ungroup.Checked = False
+            self._annot_changing = False
+        elif not self.chk_annot_ungroup.Checked:
+            self._annot_changing = True
+            self.chk_annot_group.Checked = True
+            self._annot_changing = False
+
+    def on_annot_ungroup_changed(self, sender, e):
+        if self._annot_changing:
+            return
+        if self.chk_annot_ungroup.Checked:
+            self._annot_changing = True
+            self.chk_annot_group.Checked = False
+            self._annot_changing = False
+        elif not self.chk_annot_group.Checked:
+            self._annot_changing = True
+            self.chk_annot_ungroup.Checked = True
+            self._annot_changing = False
+
     def on_form_closed(self, sender, e):
-        if self.timer:
-            self.timer.Stop()
         if "rhino_illustrator_sync_panel" in scriptcontext.sticky:
             del scriptcontext.sticky["rhino_illustrator_sync_panel"]
-
-    def on_timer_tick(self, sender, e):
-        # Dispatch to Rhino's UI thread to ensure document operations are 100% thread-safe
-        import System
-        Rhino.RhinoApp.InvokeOnUiThread(System.Action(self.safe_timer_tick))
-
-    def safe_timer_tick(self):
-        # 1. Auto Import
-        if self.chk_auto_import.Checked:
-            if os.path.exists(self.ai_artboards_file):
-                current_mod_time = os.path.getmtime(self.ai_artboards_file)
-                if current_mod_time > self.last_ai_mod_time:
-                    self.lbl_status.Text = "Status: AI artboards updated, importing..."
-                    self.import_artboards(silent=True)
-                    self.last_ai_mod_time = current_mod_time
-        
-        # 2. Auto Export
-        if self.chk_auto_export.Checked:
-            current_signature = self.get_rhino_curves_signature()
-            if current_signature != self.last_rhino_signature:
-                self.lbl_status.Text = "Status: Curves modified, exporting..."
-                self.export_curves(silent=True)
-                self.last_rhino_signature = current_signature
 
     def import_artboards(self, silent=False):
         if not os.path.exists(self.ai_artboards_file):
@@ -395,6 +442,540 @@ class RhinoSyncPanel(forms.Form):
             pass
         return loops
 
+    def _is_annotation_not_text(self, obj):
+        """
+        Check if object is a dimension/leader annotation (not plain text).
+        Uses rs.ObjectType (512 = all annotations) then excludes plain text.
+        """
+        try:
+            obj_type = rs.ObjectType(obj)
+            if obj_type != 512:
+                return False
+            # ObjectType 512 includes text, dimensions, and leaders.
+            # Exclude plain text objects.
+            if rs.IsText(obj):
+                return False
+            return True
+        except Exception:
+            return False
+
+    def _explode_annotation(self, obj):
+        """
+        Explode annotation (dimension or leader) into curves and text
+        using RhinoCommon's Dimension.Explode() API.
+        Must call UpdateDimensionText() first because dimensions
+        compute their text lazily.
+        """
+        parent_layer = str(rs.ObjectLayer(obj))
+        if parent_layer.startswith("Artboards::"):
+            parent_layer = parent_layer.replace("Artboards::", "", 1)
+
+        color = rs.ObjectColor(obj)
+        color_rgb = [int(color.R), int(color.G), int(color.B)] if color else [0, 0, 0]
+        obj_id = str(obj)
+        results = []
+
+        try:
+            rhino_obj = scriptcontext.doc.Objects.Find(obj)
+            if not rhino_obj:
+                return results
+            geo = rhino_obj.Geometry
+
+            # Force text/geometry computation before exploding
+            if hasattr(geo, "UpdateDimensionText"):
+                try:
+                    dim_style = geo.GetDimensionStyle(scriptcontext.doc.DimStyles)
+                    geo.UpdateDimensionText(dim_style, False)
+                except Exception:
+                    try:
+                        geo.UpdateDimensionText()
+                    except Exception:
+                        pass
+
+            # Explode using RhinoCommon (returns GeometryBase[])
+            exploded = None
+            if hasattr(geo, "Explode"):
+                try:
+                    exploded = geo.Explode()
+                except Exception:
+                    pass
+
+            if exploded and len(exploded) > 0:
+                # Recursively flatten any sub-annotations
+                final_geos = self._flatten_annotation_geos(exploded)
+                idx = 0
+                for eg in final_geos:
+                    shape = self._annotation_geo_to_shape(
+                        eg, obj_id, idx, parent_layer, color_rgb, geo
+                    )
+                    if shape:
+                        results.append(shape)
+                        idx += 1
+
+            # If RhinoCommon Explode produced nothing, try command fallback
+            if not results:
+                results = self._explode_annotation_cmd(obj, parent_layer, color_rgb, obj_id)
+
+            # If command also failed, extract text + lines directly
+            if not results:
+                results = self._annotation_direct_extract(obj, parent_layer, color_rgb, obj_id, geo)
+
+        except Exception:
+            pass
+
+        return results
+
+    def _flatten_annotation_geos(self, geos, depth=0):
+        """Recursively explode any sub-annotations in the result list."""
+        if depth > 3:
+            return list(geos)
+        result = []
+        for g in geos:
+            if isinstance(g, Rhino.Geometry.AnnotationBase) and not isinstance(g, Rhino.Geometry.TextEntity):
+                if hasattr(g, "UpdateDimensionText"):
+                    try:
+                        ds = g.GetDimensionStyle(scriptcontext.doc.DimStyles)
+                        g.UpdateDimensionText(ds, False)
+                    except Exception:
+                        pass
+                if hasattr(g, "Explode"):
+                    try:
+                        sub = g.Explode()
+                        if sub and len(sub) > 0:
+                            result.extend(self._flatten_annotation_geos(sub, depth + 1))
+                            continue
+                    except Exception:
+                        pass
+                result.append(g)
+            else:
+                result.append(g)
+        return result
+
+    def _annotation_geo_to_shape(self, geo, obj_id, idx, parent_layer, color_rgb, parent_geo):
+        """Convert a single RhinoCommon geometry from Explode() into a shape dict."""
+        # --- TextEntity ---
+        if isinstance(geo, Rhino.Geometry.TextEntity):
+            text = ""
+            if hasattr(geo, "PlainText"):
+                text = geo.PlainText
+            if not text and hasattr(geo, "Text"):
+                text = geo.Text
+            if not text:
+                return None
+            pt = geo.Plane.Origin if hasattr(geo, "Plane") else None
+            if not pt:
+                return None
+            height = 1.0
+            font = ""
+            justification = "center"
+            try:
+                ds = geo.GetDimensionStyle(scriptcontext.doc.DimStyles)
+                if ds:
+                    height = float(ds.TextHeight)
+                    if ds.Font:
+                        font = str(getattr(ds.Font, "LogfontName", getattr(ds.Font, "FamilyName", "")))
+            except Exception:
+                try:
+                    height = float(getattr(geo, "TextHeight", 1.0))
+                except Exception:
+                    pass
+            try:
+                ha = int(getattr(geo, "TextHorizontalAlignment", 1))
+                if ha == 0:
+                    justification = "left"
+                elif ha == 2:
+                    justification = "right"
+            except Exception:
+                pass
+            return {
+                "id":            "{}_{}_text".format(obj_id, idx),
+                "layer":         parent_layer,
+                "type":          "text",
+                "text":          text,
+                "point":         [float(pt.X), float(-pt.Y)],
+                "height":        height,
+                "font":          font,
+                "color":         color_rgb,
+                "justification": justification,
+                "group_id":      obj_id,
+                "group_name":    "Annotation"
+            }
+
+        # --- Curve (LineCurve, PolylineCurve, ArcCurve, NurbsCurve) ---
+        if isinstance(geo, Rhino.Geometry.Curve):
+            pts = []
+            ok, polyline = geo.TryGetPolyline()
+            if ok and polyline and polyline.Count >= 2:
+                pts = [[float(p.X), float(-p.Y)] for p in polyline]
+            elif geo.IsLinear():
+                pts = [
+                    [float(geo.PointAtStart.X), float(-geo.PointAtStart.Y)],
+                    [float(geo.PointAtEnd.X), float(-geo.PointAtEnd.Y)]
+                ]
+            else:
+                # Approximate curved arrowheads / arcs
+                params = geo.DivideByCount(32, True)
+                if params:
+                    pts = [[float(geo.PointAt(t).X), float(-geo.PointAt(t).Y)] for t in params]
+            if len(pts) >= 2:
+                return {
+                    "id":         "{}_{}_crv".format(obj_id, idx),
+                    "layer":      parent_layer,
+                    "type":       "polyline",
+                    "closed":     bool(geo.IsClosed),
+                    "points":     pts,
+                    "color":      color_rgb,
+                    "width":      1.0,
+                    "linetype":   "Continuous",
+                    "group_id":   obj_id,
+                    "group_name": "Annotation"
+                }
+
+        return None
+
+    def _explode_annotation_cmd(self, obj, parent_layer, color_rgb, obj_id):
+        """Fallback: use _Explode command if RhinoCommon Explode() is unavailable."""
+        results = []
+        rs.EnableRedraw(False)
+        try:
+            duplicated = rs.CopyObject(obj)
+            if duplicated:
+                rs.UnselectAllObjects()
+                rs.SelectObject(duplicated)
+                rs.Command("_Explode", False)
+                sel = rs.SelectedObjects()
+                rs.UnselectAllObjects()
+                parts = list(sel) if sel else []
+                for part in parts:
+                    if rs.IsObject(part):
+                        shapes = self._get_object_export_data(part)
+                        if shapes:
+                            for s in shapes:
+                                s["layer"] = parent_layer
+                                s["group_id"] = obj_id
+                                s["group_name"] = "Annotation"
+                                results.append(s)
+                # Cleanup
+                for part in parts:
+                    try:
+                        if rs.IsObject(part):
+                            rs.DeleteObject(part)
+                    except Exception:
+                        pass
+                try:
+                    if rs.IsObject(duplicated):
+                        rs.DeleteObject(duplicated)
+                except Exception:
+                    pass
+        except Exception:
+            pass
+        rs.EnableRedraw(True)
+        return results
+
+    def _annotation_direct_extract(self, obj, parent_layer, color_rgb, obj_id, geo):
+        """Last resort: extract text and bounding box lines from annotation."""
+        results = []
+        try:
+            text = ""
+            if hasattr(geo, "PlainText"):
+                text = geo.PlainText
+            elif hasattr(geo, "Text"):
+                text = geo.Text
+
+            text_height = 1.0
+            font_name = ""
+            try:
+                ds = geo.GetDimensionStyle(scriptcontext.doc.DimStyles)
+                if ds:
+                    text_height = float(ds.TextHeight)
+                    if ds.Font:
+                        font_name = str(getattr(ds.Font, "LogfontName", ""))
+            except Exception:
+                pass
+
+            if text:
+                bbox = rs.BoundingBox(obj)
+                if bbox:
+                    bx = [float(p.X) for p in bbox]
+                    by = [float(p.Y) for p in bbox]
+                    cx = (min(bx) + max(bx)) / 2.0
+                    cy = (min(by) + max(by)) / 2.0
+                    results.append({
+                        "id":            obj_id + "_text",
+                        "layer":         parent_layer,
+                        "type":          "text",
+                        "text":          text,
+                        "point":         [float(cx), float(-cy)],
+                        "height":        text_height,
+                        "font":          font_name,
+                        "color":         color_rgb,
+                        "justification": "center",
+                        "group_id":      obj_id,
+                        "group_name":    "Annotation"
+                    })
+        except Exception:
+            pass
+        return results
+
+    def _get_object_export_data(self, obj):
+        """
+        Gets the list of shape dictionaries for a single object.
+        Supports Curve, Hatch, Picture frame, and Text objects.
+        """
+        shapes = []
+        obj_id_str = str(obj)
+        layer_name = str(rs.ObjectLayer(obj))
+        if layer_name.startswith("Artboards::"):
+            layer_name = layer_name.replace("Artboards::", "", 1)
+            
+        color = rs.ObjectColor(obj)
+        width = rs.ObjectPrintWidth(obj)
+        linetype = rs.ObjectLinetype(obj)
+        color_rgb = [int(color.R), int(color.G), int(color.B)] if color else [0, 0, 0]
+        width_val = float(width) if width else 1.0
+        linetype_v = str(linetype) if linetype else "Continuous"
+        
+        # --- 1. Text handling ---
+        if rs.IsText(obj):
+            text_content = None
+            pt = None
+            height = 1.0
+            font = ""
+            
+            try:
+                text_content = rs.TextObjectText(obj)
+                pt = rs.TextObjectPoint(obj)
+                height = rs.TextObjectHeight(obj)
+                font = rs.TextObjectFont(obj)
+            except Exception:
+                pass
+                
+            # Fallback to RhinoCommon if properties missing (extremely robust for exploded annotation text entities)
+            if not text_content or not pt:
+                try:
+                    rhino_obj = scriptcontext.doc.Objects.Find(obj)
+                    if rhino_obj:
+                        geo = rhino_obj.Geometry
+                        if hasattr(geo, "PlainText"):
+                            text_content = geo.PlainText
+                        elif hasattr(geo, "Text"):
+                            text_content = geo.Text
+                            
+                        if hasattr(geo, "Plane"):
+                            pt = geo.Plane.Origin
+                        elif hasattr(geo, "Location"):
+                            pt = geo.Location
+                            
+                        if hasattr(geo, "TextHeight"):
+                            height = geo.TextHeight
+                        elif hasattr(geo, "Height"):
+                            height = geo.Height
+                            
+                        if hasattr(geo, "Font"):
+                            if hasattr(geo.Font, "LogfontName"):
+                                font = geo.Font.LogfontName
+                            elif hasattr(geo.Font, "FamilyName"):
+                                font = geo.Font.FamilyName
+                except Exception:
+                    pass
+
+            # Extract text justification/alignment
+            justification = "left"
+            try:
+                robj = scriptcontext.doc.Objects.Find(obj)
+                if robj:
+                    geo_j = robj.Geometry
+                    # Rhino 7+: TextHorizontalAlignment enum (0=Left, 1=Center, 2=Right)
+                    if hasattr(geo_j, "TextHorizontalAlignment"):
+                        h_align = int(geo_j.TextHorizontalAlignment)
+                        if h_align == 1:
+                            justification = "center"
+                        elif h_align == 2:
+                            justification = "right"
+                    # Fallback: Justification bitmask (1=Left, 2=Center, 4=Right)
+                    elif hasattr(geo_j, "Justification"):
+                        j_val = int(geo_j.Justification)
+                        h_bits = j_val & 0x7
+                        if h_bits == 2:
+                            justification = "center"
+                        elif h_bits == 4:
+                            justification = "right"
+            except Exception:
+                pass
+                    
+            if text_content and pt:
+                shapes.append({
+                    "id":            obj_id_str,
+                    "layer":         layer_name,
+                    "type":          "text",
+                    "text":          text_content,
+                    "point":         [float(pt.X), float(-pt.Y)],
+                    "height":        float(height) if height else 1.0,
+                    "font":          str(font) if font else "",
+                    "color":         color_rgb,
+                    "justification": justification
+                })
+            return shapes
+
+        # --- 2. Picture handling ---
+        if self.chk_export_pics.Checked and self._is_picture_frame(obj):
+            img_path = self._get_picture_image_path(obj)
+            if img_path:
+                pic_bbox = rs.BoundingBox(obj)
+                if pic_bbox:
+                    bx = [float(p.X) for p in pic_bbox]
+                    by = [float(p.Y) for p in pic_bbox]
+                    pic_left = min(bx)
+                    pic_right = max(bx)
+                    pic_bottom = min(by)
+                    pic_top = max(by)
+                    shapes.append({
+                        "id":      obj_id_str,
+                        "layer":   layer_name,
+                        "type":    "picture",
+                        "left":    pic_left,
+                        "top":     float(-pic_top),
+                        "width":   pic_right - pic_left,
+                        "height":  pic_top - pic_bottom,
+                        "image":   img_path
+                    })
+            return shapes
+
+        # --- 3. Hatch handling ---
+        if rs.IsHatch(obj):
+            hatch_as_solid = bool(self.chk_hatch_solid.Checked)
+            hatch_explode = bool(self.chk_hatch_explode.Checked)
+            
+            if hatch_as_solid:
+                loops = self._get_hatch_outer_boundary(obj)
+                if loops:
+                    for idx, loop in enumerate(loops):
+                        if len(loop) < 2: continue
+                        mirrored = [[float(x), float(-y)] for x, y in loop]
+                        shapes.append({
+                            "id":         "{}_{}".format(obj_id_str, idx),
+                            "layer":      layer_name,
+                            "type":       "hatch_solid",
+                            "closed":     True,
+                            "points":     mirrored,
+                            "color":      color_rgb,
+                            "fill_color": color_rgb,
+                            "width":      width_val,
+                            "linetype":   linetype_v,
+                            "group_id":   obj_id_str,
+                            "group_name": "Hatch"
+                        })
+                return shapes
+
+            if hatch_explode:
+                is_solid = self._is_solid_hatch(obj)
+                if is_solid:
+                    loops = self._get_hatch_outer_boundary(obj)
+                else:
+                    loops = self._get_hatch_boundary_loops(obj)
+                    
+                if not loops:
+                    loops = self._get_hatch_outer_boundary(obj)
+                    is_solid = True
+                    
+                if loops:
+                    for idx, loop in enumerate(loops):
+                        if len(loop) < 2: continue
+                        mirrored = [[float(x), float(-y)] for x, y in loop]
+                        if is_solid:
+                            shapes.append({
+                                "id":         "{}_{}".format(obj_id_str, idx),
+                                "layer":      layer_name,
+                                "type":       "hatch_solid",
+                                "closed":     True,
+                                "points":     mirrored,
+                                "color":      color_rgb,
+                                "fill_color": color_rgb,
+                                "width":      width_val,
+                                "linetype":   linetype_v,
+                                "group_id":   obj_id_str,
+                                "group_name": "Hatch"
+                            })
+                        else:
+                            shapes.append({
+                                "id":         "{}_{}".format(obj_id_str, idx),
+                                "layer":      layer_name,
+                                "type":       "polyline",
+                                "closed":     True,
+                                "points":     mirrored,
+                                "color":      color_rgb,
+                                "width":      width_val,
+                                "linetype":   linetype_v,
+                                "group_id":   obj_id_str,
+                                "group_name": "Hatch"
+                            })
+                return shapes
+            return shapes
+
+        # --- 4. Curve handling ---
+        if rs.IsCurve(obj):
+            obj_type = "polyline"
+            pts_list = []
+            radius_val = None
+
+            if rs.IsCircle(obj):
+                center = rs.CircleCenterPoint(obj)
+                radius_val = float(rs.CircleRadius(obj))
+                pts_list = [[float(center.X), float(center.Y)], [float(center.X) + radius_val, float(center.Y)]]
+                obj_type = "circle"
+
+            elif rs.IsEllipse(obj):
+                try:
+                    curve_obj = rs.coercecurve(obj)
+                    result_val, ellipse = curve_obj.TryGetEllipse()
+                    if result_val:
+                        center = ellipse.Plane.Origin
+                        radius_val = float(ellipse.Radius1)
+                        pts_list = [[float(center.X), float(center.Y)], [float(center.X) + radius_val, float(center.Y)]]
+                        obj_type = "ellipse"
+                except:
+                    num_pts = max(100, rs.CurvePointCount(obj) * 5)
+                    pts = rs.DivideCurve(obj, num_pts)
+                    if pts:
+                        pts_list = [[float(pt.X), float(pt.Y)] for pt in pts]
+                    obj_type = "nurbs"
+
+            elif rs.CurveDegree(obj) > 1:
+                num_pts = max(100, rs.CurvePointCount(obj) * 5)
+                pts = rs.DivideCurve(obj, num_pts)
+                if pts:
+                    pts_list = [[float(pt.X), float(pt.Y)] for pt in pts]
+                obj_type = "nurbs"
+
+            elif rs.CurveDegree(obj) == 1:
+                pts = rs.CurvePoints(obj)
+                if pts:
+                    pts_list = [[float(pt.X), float(pt.Y)] for pt in pts]
+                obj_type = "polyline"
+
+            pts_list = [[float(x), float(-y)] for x, y in pts_list]
+            try:
+                closed_val = bool(rs.IsCurveClosed(obj))
+            except:
+                closed_val = False
+
+            shape_data = {
+                "id":       obj_id_str,
+                "layer":    layer_name,
+                "type":     str(obj_type),
+                "closed":   closed_val,
+                "points":   pts_list,
+                "color":    color_rgb,
+                "width":    width_val,
+                "linetype": linetype_v
+            }
+            if radius_val is not None:
+                shape_data["radius"] = radius_val
+            shapes.append(shape_data)
+            return shapes
+
+        return shapes
+
     def export_curves(self, silent=False):
         try:
             self._export_curves_internal(silent)
@@ -419,14 +1000,13 @@ class RhinoSyncPanel(forms.Form):
             self.lbl_status.Text = "Status: No artboards"
             return
 
-        hatch_as_solid = bool(self.chk_hatch_solid.Checked)
-        hatch_explode = bool(self.chk_hatch_explode.Checked)
-
         result = []
         all_objs = []
         all_objs += rs.ObjectsByType(4, select=False) or []      # Curve
         all_objs += rs.ObjectsByType(8, select=False) or []      # Surface (PictureFrames)
-        all_objs += rs.ObjectsByType(65536, select=False) or []  # Hatch
+        if not self.chk_hatch_none.Checked:
+            all_objs += rs.ObjectsByType(65536, select=False) or []  # Hatch
+        all_objs += rs.ObjectsByType(512, select=False) or []    # Annotation (Text, Dimensions, Leaders, etc.)
 
         for sub_layer in sublayers:
             rects = rs.ObjectsByLayer(sub_layer)
@@ -452,6 +1032,7 @@ class RhinoSyncPanel(forms.Form):
             max_y = max([p.Y for p in bbox])
 
             shapes = []
+            debug_lines = []
             for obj in all_objs:
                 if obj == artboard_rect:
                     continue
@@ -461,191 +1042,48 @@ class RhinoSyncPanel(forms.Form):
                     continue
                 cx = [p.X for p in obj_bbox]
                 cy = [p.Y for p in obj_bbox]
-                layer_name = str(rs.ObjectLayer(obj))
-                if layer_name.startswith("Artboards::"):
-                    layer_name = layer_name.replace("Artboards::", "", 1)
                 
-                if self.chk_export_pics.Checked and self._is_picture_frame(obj):
-                    # Export picture frame as an image reference
-                    img_path = self._get_picture_image_path(obj)
-                    if img_path:
-                        # Bounding box of the picture frame
-                        pic_bbox = rs.BoundingBox(obj)
-                        if pic_bbox:
-                            # Compute min/max from all bbox points
-                            bx = [float(p.X) for p in pic_bbox]
-                            by = [float(p.Y) for p in pic_bbox]
-                            pic_left = min(bx)
-                            pic_right = max(bx)
-                            pic_bottom = min(by)
-                            pic_top = max(by)
-                            pic_width = pic_right - pic_left
-                            pic_height = pic_top - pic_bottom
-                            # Mirror Y for Illustrator: top becomes -top
-                            shape = {
-                                "id": str(obj),
-                                "layer": layer_name,
-                                "type": "picture",
-                                "left": pic_left,
-                                "top": float(-pic_top),
-                                "width": pic_width,
-                                "height": pic_height,
-                                "image": img_path
-                            }
+                # For annotations, use center-point check (extension lines may go outside)
+                is_annot = self._is_annotation_not_text(obj)
+                if is_annot:
+                    center_x = (min(cx) + max(cx)) / 2.0
+                    center_y = (min(cy) + max(cy)) / 2.0
+                    inside = (center_x >= min_x and center_x <= max_x and
+                              center_y >= min_y and center_y <= max_y)
+                    debug_lines.append("ANNOT id={} type={} inside={} center=({:.1f},{:.1f})".format(
+                        str(obj), rs.ObjectType(obj), inside, center_x, center_y))
+                    if inside:
+                        exploded_shapes = self._explode_annotation(obj)
+                        debug_lines.append("  -> exploded into {} shapes".format(len(exploded_shapes)))
+                        for shape in exploded_shapes:
                             shapes.append(shape)
                     continue
-
+                
                 # Only keep objects fully inside the artboard
-                if (min(cx) >= min_x and max(cx) <= max_x and min(cy) >= min_y and max(cy) <= max_y):
-                    color = rs.ObjectColor(obj)
-                    width = rs.ObjectPrintWidth(obj)
-                    linetype = rs.ObjectLinetype(obj)
-                    color_rgb = [int(color.R), int(color.G), int(color.B)] if color else [0, 0, 0]
-                    width_val = float(width) if width else 1.0
-                    linetype_v = str(linetype) if linetype else "Continuous"
-                    layer_name = str(rs.ObjectLayer(obj))
-                    if layer_name.startswith("Artboards::"):
-                        layer_name = layer_name.replace("Artboards::", "", 1)
-                    obj_id_str = str(obj)
+                if not (min(cx) >= min_x and max(cx) <= max_x and min(cy) >= min_y and max(cy) <= max_y):
+                    continue
+                    
+                # --- General object handling ---
+                obj_shapes = self._get_object_export_data(obj)
+                if obj_shapes:
+                    for shape in obj_shapes:
+                        shapes.append(shape)
 
-                    # ---------- HATCH handling ----------
-                    if rs.IsHatch(obj):
-                        # Option 1: Export as solid fills (use outer boundary, not fill lines)
-                        if hatch_as_solid:
-                            loops = self._get_hatch_outer_boundary(obj)
-                            if not loops:
-                                continue
-                            for idx, loop in enumerate(loops):
-                                if len(loop) < 2:
-                                    continue
-                                # Mirror Y for Illustrator
-                                mirrored = [[float(x), float(-y)] for x, y in loop]
-                                shapes.append({
-                                    "id":         "{}_{}".format(obj_id_str, idx),
-                                    "layer":      layer_name,
-                                    "type":       "hatch_solid",
-                                    "closed":     True,
-                                    "points":     mirrored,
-                                    "color":      color_rgb,
-                                    "fill_color": color_rgb,
-                                    "width":      width_val,
-                                    "linetype":   linetype_v
-                                })
-                            continue
-
-                        # Option 2: Explode hatches (auto-detect solid)
-                        if hatch_explode:
-                            is_solid = self._is_solid_hatch(obj)
-                            # Try to get appropriate loops
-                            if is_solid:
-                                # Solid hatch - use outer boundary
-                                loops = self._get_hatch_outer_boundary(obj)
-                            else:
-                                # Non-solid hatch - explode into pattern lines
-                                loops = self._get_hatch_boundary_loops(obj)
-                            # Fallback: if no loops were retrieved, try outer boundary anyway
-                            if not loops:
-                                loops = self._get_hatch_outer_boundary(obj)
-                                is_solid = True  # If explode failed, it is a solid hatch
-                            if not loops:
-                                continue
-                            for idx, loop in enumerate(loops):
-                                if len(loop) < 2:
-                                    continue
-                                mirrored = [[float(x), float(-y)] for x, y in loop]
-                                if is_solid:
-                                    # Solid hatch - filled polygon
-                                    shapes.append({
-                                        "id":         "{}_{}".format(obj_id_str, idx),
-                                        "layer":    layer_name,
-                                        "type":     "hatch_solid",
-                                        "closed":   True,
-                                        "points":   mirrored,
-                                        "color":    color_rgb,
-                                        "fill_color": color_rgb,
-                                        "width":    width_val,
-                                        "linetype": linetype_v
-                                    })
-                                else:
-                                    # Non-solid hatch - boundary curves (stroked)
-                                    shapes.append({
-                                        "id":         "{}_{}".format(obj_id_str, idx),
-                                        "layer":    layer_name,
-                                        "type":     "polyline",
-                                        "closed":   True,
-                                        "points":   mirrored,
-                                        "color":    color_rgb,
-                                        "width":    width_val,
-                                        "linetype": linetype_v
-                                    })
-                            continue
-
-                    # ---------- CURVE handling ----------
-                    elif rs.IsCurve(obj):
-                        obj_type = "polyline"
-                        pts_list = []
-                        radius_val = None
-
-                        # Circles
-                        if rs.IsCircle(obj):
-                            center = rs.CircleCenterPoint(obj)
-                            radius_val = float(rs.CircleRadius(obj))
-                            pts_list = [[float(center.X), float(center.Y)], [float(center.X) + radius_val, float(center.Y)]]
-                            obj_type = "circle"
-
-                        # Ellipses
-                        elif rs.IsEllipse(obj):
-                            try:
-                                curve_obj = rs.coercecurve(obj)
-                                result_val, ellipse = curve_obj.TryGetEllipse()
-                                if result_val:
-                                    center = ellipse.Plane.Origin
-                                    radius_val = float(ellipse.Radius1)
-                                    pts_list = [[float(center.X), float(center.Y)], [float(center.X) + radius_val, float(center.Y)]]
-                                    obj_type = "ellipse"
-                            except:
-                                # Fallback: treat as NURBS
-                                num_pts = max(100, rs.CurvePointCount(obj) * 5)
-                                pts = rs.DivideCurve(obj, num_pts)
-                                if pts:
-                                    pts_list = [[float(pt.X), float(pt.Y)] for pt in pts]
-                                obj_type = "nurbs"
-
-                        # Smooth NURBS / splines
-                        elif rs.CurveDegree(obj) > 1:
-                            num_pts = max(100, rs.CurvePointCount(obj) * 5)
-                            pts = rs.DivideCurve(obj, num_pts)
-                            if pts:
-                                pts_list = [[float(pt.X), float(pt.Y)] for pt in pts]
-                            obj_type = "nurbs"
-
-                        # Straight polylines / lines
-                        elif rs.CurveDegree(obj) == 1:
-                            pts = rs.CurvePoints(obj)
-                            if pts:
-                                pts_list = [[float(pt.X), float(pt.Y)] for pt in pts]
-                            obj_type = "polyline"
-
-                        # Mirror curves for Illustrator
-                        pts_list = [[float(x), float(-y)] for x, y in pts_list]
-                        try:
-                            closed_val = bool(rs.IsCurveClosed(obj))
-                        except:
-                            closed_val = False
-
-                        shape_data = {
-                            "id":       obj_id_str,
-                            "layer":    layer_name,
-                            "type":     str(obj_type),
-                            "closed":   closed_val,
-                            "points":   pts_list,
-                            "color":    color_rgb,
-                            "width":    width_val,
-                            "linetype": linetype_v
-                        }
-                        if radius_val is not None:
-                            shape_data["radius"] = radius_val
-                        shapes.append(shape_data)
+            # Write annotation debug log
+            if debug_lines:
+                try:
+                    debug_path = os.path.join(self.desktop_path, "annotation_debug.txt")
+                    with open(debug_path, "w") as df:
+                        df.write("Annotation Debug Log\n")
+                        df.write("Artboard: {}\n".format(sub_layer))
+                        df.write("All type-512 objects: {}\n".format(
+                            len([o for o in all_objs if rs.ObjectType(o) == 512])))
+                        df.write("Non-text annotations: {}\n".format(
+                            len([o for o in all_objs if self._is_annotation_not_text(o)])))
+                        for line in debug_lines:
+                            df.write(line + "\n")
+                except Exception:
+                    pass
 
             result.append({
                 "artboard": sub_layer.split("::")[-1],

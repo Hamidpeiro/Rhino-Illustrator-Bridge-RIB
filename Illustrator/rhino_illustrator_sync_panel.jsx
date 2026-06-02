@@ -333,6 +333,87 @@
                     if (!curve.layer) continue;
                     var targetLayer = ensureLayer(curve.layer);
 
+                    // Check for group
+                    var group = null;
+                    if (curve.group_id) {
+                        try {
+                            group = doc.pageItems.getByName(curve.group_id);
+                            if (group.typename !== "GroupItem") {
+                                group = null;
+                            }
+                        } catch(e) {
+                            group = targetLayer.groupItems.add();
+                            group.name = curve.group_id;
+                        }
+                    }
+                    var parentContainer = group || targetLayer;
+
+                    // Text frame handling – baseline positioning matching Rhino's native AI export
+                    if (curve.type === "text") {
+                        try {
+                            if (curve.id) {
+                                try {
+                                    var existingText = doc.pageItems.getByName(curve.id);
+                                    if (existingText) existingText.remove();
+                                } catch(e) {}
+                            }
+                            var textRef = parentContainer.textFrames.add();
+                            textRef.contents = curve.text;
+
+                            // Set text size
+                            var fontSize = curve.height ? mmToPt(curve.height) : 12;
+                            textRef.textRange.characterAttributes.size = fontSize;
+
+                            // Set text color
+                            if (curve.color && curve.color.length === 3) {
+                                var c = new RGBColor();
+                                c.red = curve.color[0]; c.green = curve.color[1]; c.blue = curve.color[2];
+                                textRef.textRange.characterAttributes.fillColor = c;
+                            }
+                            // Set font
+                            if (curve.font) {
+                                try {
+                                    textRef.textRange.characterAttributes.textFont = app.textFonts.getByName(curve.font);
+                                } catch(e) {}
+                            }
+                            // Set paragraph justification (alignment)
+                            if (curve.justification) {
+                                var just = curve.justification.toLowerCase();
+                                if (just === "center") {
+                                    textRef.textRange.paragraphAttributes.justification = Justification.CENTER;
+                                } else if (just === "right") {
+                                    textRef.textRange.paragraphAttributes.justification = Justification.RIGHT;
+                                } else {
+                                    textRef.textRange.paragraphAttributes.justification = Justification.LEFT;
+                                }
+                            }
+
+                            // Baseline position from Rhino: point = [x, -y]
+                            // Negate Y again (same double-negation as curve points)
+                            var tx = mmToPt(curve.point[0]);
+                            var baselineY = -mmToPt(curve.point[1]);
+
+                            // .position = [left, top] of bounding box, NOT the baseline.
+                            // .anchor = baseline insertion point (for point text).
+                            // Strategy: place at origin, read anchor offset, then move to target.
+                            textRef.position = [0, 0];
+                            var dx = 0, dy = 0;
+                            try {
+                                var anch = textRef.anchor;
+                                dx = -anch[0];
+                                dy = -anch[1];
+                            } catch(anchorErr) {
+                                // Fallback: ascent ≈ 80% of font size
+                                dy = fontSize * 0.8;
+                            }
+                            textRef.position = [tx + dx, baselineY + dy];
+
+                            if (curve.id) textRef.name = curve.id;
+                        } catch (e) {}
+                        totalCurves++;
+                        continue;
+                    }
+
                     // Picture handling: place image (no points needed)
                     if (curve.type === "picture" && curve.image) {
                         try {
@@ -345,7 +426,7 @@
                                         if (existingPic) existingPic.remove();
                                     } catch(e) {}
                                 }
-                                var placed = doc.placedItems.add();
+                                var placed = parentContainer.placedItems.add();
                                 placed.file = imgFile;
                                 var picLeft = mmToPt(curve.left);
                                 var picTop = -mmToPt(curve.top);
@@ -355,7 +436,7 @@
                                 placed.width = picWidth;
                                 placed.height = picHeight;
                                 if (curve.id) placed.name = curve.id;
-                                placed.move(targetLayer, ElementPlacement.PLACEATEND);
+                                placed.move(parentContainer, ElementPlacement.PLACEATEND);
                             }
                         } catch (e) {}
                         totalCurves++;
@@ -379,7 +460,7 @@
                         if (curve.type === "circle" || curve.type === "ellipse") {
                             var cx = pts[0][0], cy = pts[0][1];
                             var r  = (curve.radius !== undefined) ? mmToPt(curve.radius) : mmToPt(1);
-                            var newCirc = targetLayer.pathItems.ellipse(cy + r, cx - r, r * 2, r * 2);
+                            var newCirc = parentContainer.pathItems.ellipse(cy + r, cx - r, r * 2, r * 2);
                             newCirc.name = curve.id;
                             newCirc.closed = true;
                             
@@ -396,6 +477,11 @@
                             totalCurves++;
                             continue;
                         } else {
+                            if (parentContainer && existingPath.parent !== parentContainer) {
+                                try {
+                                    existingPath.move(parentContainer, ElementPlacement.PLACEATEND);
+                                } catch(e) {}
+                            }
                             var pp = existingPath.pathPoints;
                             while (pp.length > pts.length) { pp[pp.length - 1].remove(); }
                             for (var m = 0; m < pp.length; m++) {
@@ -419,12 +505,12 @@
                     if ((curve.type === "circle" || curve.type === "ellipse") && pts.length >= 1) {
                         var cx = pts[0][0], cy = pts[0][1];
                         var r  = (curve.radius !== undefined) ? mmToPt(curve.radius) : mmToPt(1);
-                        var circ = targetLayer.pathItems.ellipse(cy + r, cx - r, r * 2, r * 2);
+                        var circ = parentContainer.pathItems.ellipse(cy + r, cx - r, r * 2, r * 2);
                         if (curve.id) circ.name = curve.id;
                         circ.closed = true;
                         applyStroke(circ, curve.color, curve.width, curve.linetype);
                     } else if (pts.length >= 2) {
-                        var poly = targetLayer.pathItems.add();
+                        var poly = parentContainer.pathItems.add();
                         if (curve.id) poly.name = curve.id;
                         try {
                             for (var m = 0; m < pts.length; m++) {
