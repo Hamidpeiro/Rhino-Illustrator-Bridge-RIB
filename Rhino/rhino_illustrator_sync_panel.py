@@ -70,24 +70,12 @@ class RhinoSyncPanel(forms.Form):
 
         self._annot_changing = False
         self.chk_annot_group = forms.RadioButtonList()
-        self.chk_annot_group.DataStore = ["Group", "   Ungroup"]
+        self.chk_annot_group.DataStore = ["Group", "UnGroup"]
         self.chk_annot_group.Orientation = forms.Orientation.Horizontal
-        self.chk_annot_group.SelectedIndex = 0
+        self.chk_annot_group.SelectedIndex = 1
         self.chk_annot_group.SelectedValueChanged += self.on_annot_group_changed
         self.chk_annot_group.ToolTip = "Export each annotation as a grouped set of lines and text."
         
-        # self.chk_annot_group = forms.CheckBox()
-        # self.chk_annot_group.Text = "Group"
-        # self.chk_annot_group.Checked = True
-        # self.chk_annot_group.CheckedChanged += self.on_annot_group_changed
-        # self.chk_annot_group.ToolTip = "Export each annotation as a grouped set of lines and text."
-
-        # self.chk_annot_ungroup = forms.CheckBox()
-        # self.chk_annot_ungroup.Text = "Ungroup"
-        # self.chk_annot_ungroup.Checked = False
-        # self.chk_annot_ungroup.CheckedChanged += self.on_annot_ungroup_changed
-        # self.chk_annot_ungroup.ToolTip = "Export each annotation's lines and text as separate, ungrouped items."
-
         # Hatch Export Options
         self.lbl_hatch_title = forms.Label()
         self.lbl_hatch_title.Text = "Hatch Export:"
@@ -107,24 +95,6 @@ class RhinoSyncPanel(forms.Form):
         self.rb_hatch_mode.Orientation = forms.Orientation.Vertical
         self.rb_hatch_mode.SelectedIndex = 1
         self.rb_hatch_mode.SelectedValueChanged += self.on_hatch_mode_changed
-        # self.chk_hatch_solid = forms.CheckBox()
-        # self.chk_hatch_solid.Text = "Export hatches as solid fills"
-        # self.chk_hatch_solid.Checked = True
-        # self.chk_hatch_solid.CheckedChanged += self.on_solid_changed
-        # self.chk_hatch_solid.ToolTip = (
-        #     "Export all hatches as closed filled polygons using the hatch object's colour. "
-        #     "Matches Rhino's 'Hatches exported as solid fills' option."
-        # )
-
-        # self.chk_hatch_explode = forms.CheckBox()
-        # self.chk_hatch_explode.Text = "Explode hatches (auto-detect solid)"
-        # self.chk_hatch_explode.Checked = False
-        # self.chk_hatch_explode.CheckedChanged += self.on_explode_changed
-        # self.chk_hatch_explode.ToolTip = (
-        #     "Explode each hatch into its boundary curves. "
-        #     "If the hatch pattern is Solid, it is still exported as a filled polygon. "
-        #     "Otherwise each boundary loop is exported as a separate open/closed curve."
-        # )
         
         # Footer / Status
         self.lbl_status = forms.Label()
@@ -152,14 +122,11 @@ class RhinoSyncPanel(forms.Form):
         layout.AddRow(self.lbl_hatch_title)
         layout.AddRow(self.chk_hatch_none)
         layout.AddRow(self.rb_hatch_mode)
-        # layout.AddRow(self.chk_hatch_solid)
-        # layout.AddRow(self.chk_hatch_explode)
         layout.AddRow(self.create_divider())
 
         # Annotation settings
         layout.AddRow(self.lbl_annot_title)
         layout.AddRow(self.chk_annot_group)
-        # layout.AddRow(self.chk_annot_ungroup)
         layout.AddRow(self.create_divider())
         
         layout.AddRow(self.lbl_status)
@@ -219,38 +186,13 @@ class RhinoSyncPanel(forms.Form):
         # disable / enable the whole mode selector
         self.rb_hatch_mode.Enabled = not is_none
     
-    # def on_none_changed(self, sender, e):
-    #     is_none = bool(self.chk_hatch_none.Checked)
-    #     self.chk_hatch_solid.Enabled = not is_none
-    #     self.chk_hatch_explode.Enabled = not is_none
-    
     def on_hatch_mode_changed(self, sender, e):
         if self.rb_hatch_mode.SelectedIndex == 0:
             self.hatch_export_mode = "solid"
         else:
             self.hatch_export_mode = "explode"
 
-    def on_solid_changed(self, sender, e):
-        if self._hatch_changing: return
-        if self.chk_hatch_solid.Checked:
-            self._hatch_changing = True
-            self.chk_hatch_explode.Checked = False
-            self._hatch_changing = False
-        elif not self.chk_hatch_explode.Checked:
-            self._hatch_changing = True
-            self.chk_hatch_solid.Checked = True
-            self._hatch_changing = False
-
-    def on_explode_changed(self, sender, e):
-        if self._hatch_changing: return
-        if self.chk_hatch_explode.Checked:
-            self._hatch_changing = True
-            self.chk_hatch_solid.Checked = False
-            self._hatch_changing = False
-        elif not self.chk_hatch_solid.Checked:
-            self._hatch_changing = True
-            self.chk_hatch_explode.Checked = True
-            self._hatch_changing = False
+    # on_solid_changed / on_explode_changed removed – replaced by on_hatch_mode_changed above
             
     def on_annot_group_changed(self, sender, e):
 
@@ -260,18 +202,6 @@ class RhinoSyncPanel(forms.Form):
             self.annotation_group = True
         else:
             self.annotation_group = False
-        
-    # def on_annot_group_changed(self, sender, e):
-    #     if self._annot_changing:
-    #         return
-    #     if self.chk_annot_group.Checked:
-    #         self._annot_changing = True
-    #         self.chk_annot_ungroup.Checked = False
-    #         self._annot_changing = False
-    #     elif not self.chk_annot_ungroup.Checked:
-    #         self._annot_changing = True
-    #         self.chk_annot_group.Checked = True
-    #         self._annot_changing = False
 
     def on_annot_ungroup_changed(self, sender, e):
         if self._annot_changing:
@@ -880,8 +810,8 @@ class RhinoSyncPanel(forms.Form):
 
         # --- 3. Hatch handling ---
         if rs.IsHatch(obj):
-            hatch_as_solid = bool(self.chk_hatch_solid.Checked)
-            hatch_explode = bool(self.chk_hatch_explode.Checked)
+            hatch_as_solid = (self.rb_hatch_mode.SelectedIndex == 0)
+            hatch_explode  = (self.rb_hatch_mode.SelectedIndex == 1)
             
             if hatch_as_solid:
                 loops = self._get_hatch_outer_boundary(obj)
