@@ -18,9 +18,9 @@ class RhinoSyncPanel(forms.Form):
     def __init__(self):
         super().__init__()
         self.Title = "Rhino <-> Illustrator"
-        self.ClientSize = drawing.Size(300, 340)
+        self.ClientSize = drawing.Size(300, 400)
         self.Padding = drawing.Padding(12)
-        self.Resizable = True
+        self.Resizable = False
         
         # Paths
         self.desktop_path = os.path.expanduser("~/Desktop")
@@ -69,18 +69,24 @@ class RhinoSyncPanel(forms.Form):
         self.lbl_annot_title.Font = drawing.Font("Arial", 9, drawing.FontStyle.Bold)
 
         self._annot_changing = False
-
-        self.chk_annot_group = forms.CheckBox()
-        self.chk_annot_group.Text = "Group"
-        self.chk_annot_group.Checked = True
-        self.chk_annot_group.CheckedChanged += self.on_annot_group_changed
+        self.chk_annot_group = forms.RadioButtonList()
+        self.chk_annot_group.DataStore = ["Group", "   Ungroup"]
+        self.chk_annot_group.Orientation = forms.Orientation.Horizontal
+        self.chk_annot_group.SelectedIndex = 0
+        self.chk_annot_group.SelectedValueChanged += self.on_annot_group_changed
         self.chk_annot_group.ToolTip = "Export each annotation as a grouped set of lines and text."
+        
+        # self.chk_annot_group = forms.CheckBox()
+        # self.chk_annot_group.Text = "Group"
+        # self.chk_annot_group.Checked = True
+        # self.chk_annot_group.CheckedChanged += self.on_annot_group_changed
+        # self.chk_annot_group.ToolTip = "Export each annotation as a grouped set of lines and text."
 
-        self.chk_annot_ungroup = forms.CheckBox()
-        self.chk_annot_ungroup.Text = "Ungroup"
-        self.chk_annot_ungroup.Checked = False
-        self.chk_annot_ungroup.CheckedChanged += self.on_annot_ungroup_changed
-        self.chk_annot_ungroup.ToolTip = "Export each annotation's lines and text as separate, ungrouped items."
+        # self.chk_annot_ungroup = forms.CheckBox()
+        # self.chk_annot_ungroup.Text = "Ungroup"
+        # self.chk_annot_ungroup.Checked = False
+        # self.chk_annot_ungroup.CheckedChanged += self.on_annot_ungroup_changed
+        # self.chk_annot_ungroup.ToolTip = "Export each annotation's lines and text as separate, ungrouped items."
 
         # Hatch Export Options
         self.lbl_hatch_title = forms.Label()
@@ -93,25 +99,32 @@ class RhinoSyncPanel(forms.Form):
         self.chk_hatch_none.CheckedChanged += self.on_none_changed
         
         self._hatch_changing = False
+        self.rb_hatch_mode = forms.RadioButtonList()
+        self.rb_hatch_mode.DataStore = [
+            "Export hatches as solid fills",
+            "Explode hatches (auto-detect solid)"
+        ]
+        self.rb_hatch_mode.Orientation = forms.Orientation.Vertical
+        self.rb_hatch_mode.SelectedIndex = 1
+        self.rb_hatch_mode.SelectedValueChanged += self.on_hatch_mode_changed
+        # self.chk_hatch_solid = forms.CheckBox()
+        # self.chk_hatch_solid.Text = "Export hatches as solid fills"
+        # self.chk_hatch_solid.Checked = True
+        # self.chk_hatch_solid.CheckedChanged += self.on_solid_changed
+        # self.chk_hatch_solid.ToolTip = (
+        #     "Export all hatches as closed filled polygons using the hatch object's colour. "
+        #     "Matches Rhino's 'Hatches exported as solid fills' option."
+        # )
 
-        self.chk_hatch_solid = forms.CheckBox()
-        self.chk_hatch_solid.Text = "Export hatches as solid fills"
-        self.chk_hatch_solid.Checked = True
-        self.chk_hatch_solid.CheckedChanged += self.on_solid_changed
-        self.chk_hatch_solid.ToolTip = (
-            "Export all hatches as closed filled polygons using the hatch object's colour. "
-            "Matches Rhino's 'Hatches exported as solid fills' option."
-        )
-
-        self.chk_hatch_explode = forms.CheckBox()
-        self.chk_hatch_explode.Text = "Explode hatches (auto-detect solid)"
-        self.chk_hatch_explode.Checked = False
-        self.chk_hatch_explode.CheckedChanged += self.on_explode_changed
-        self.chk_hatch_explode.ToolTip = (
-            "Explode each hatch into its boundary curves. "
-            "If the hatch pattern is Solid, it is still exported as a filled polygon. "
-            "Otherwise each boundary loop is exported as a separate open/closed curve."
-        )
+        # self.chk_hatch_explode = forms.CheckBox()
+        # self.chk_hatch_explode.Text = "Explode hatches (auto-detect solid)"
+        # self.chk_hatch_explode.Checked = False
+        # self.chk_hatch_explode.CheckedChanged += self.on_explode_changed
+        # self.chk_hatch_explode.ToolTip = (
+        #     "Explode each hatch into its boundary curves. "
+        #     "If the hatch pattern is Solid, it is still exported as a filled polygon. "
+        #     "Otherwise each boundary loop is exported as a separate open/closed curve."
+        # )
         
         # Footer / Status
         self.lbl_status = forms.Label()
@@ -137,14 +150,16 @@ class RhinoSyncPanel(forms.Form):
 
         # Hatch settings
         layout.AddRow(self.lbl_hatch_title)
-        layout.AddRow(self.chk_hatch_solid)
-        layout.AddRow(self.chk_hatch_explode)
         layout.AddRow(self.chk_hatch_none)
+        layout.AddRow(self.rb_hatch_mode)
+        # layout.AddRow(self.chk_hatch_solid)
+        # layout.AddRow(self.chk_hatch_explode)
         layout.AddRow(self.create_divider())
 
         # Annotation settings
         layout.AddRow(self.lbl_annot_title)
-        layout.AddRow(self.chk_annot_group, self.chk_annot_ungroup)
+        layout.AddRow(self.chk_annot_group)
+        # layout.AddRow(self.chk_annot_ungroup)
         layout.AddRow(self.create_divider())
         
         layout.AddRow(self.lbl_status)
@@ -196,11 +211,24 @@ class RhinoSyncPanel(forms.Form):
     def on_export_click(self, sender, e):
         import System
         Rhino.RhinoApp.InvokeOnUiThread(System.Action(lambda: self.export_curves(silent=False)))
-
+    
     def on_none_changed(self, sender, e):
+
         is_none = bool(self.chk_hatch_none.Checked)
-        self.chk_hatch_solid.Enabled = not is_none
-        self.chk_hatch_explode.Enabled = not is_none
+
+        # disable / enable the whole mode selector
+        self.rb_hatch_mode.Enabled = not is_none
+    
+    # def on_none_changed(self, sender, e):
+    #     is_none = bool(self.chk_hatch_none.Checked)
+    #     self.chk_hatch_solid.Enabled = not is_none
+    #     self.chk_hatch_explode.Enabled = not is_none
+    
+    def on_hatch_mode_changed(self, sender, e):
+        if self.rb_hatch_mode.SelectedIndex == 0:
+            self.hatch_export_mode = "solid"
+        else:
+            self.hatch_export_mode = "explode"
 
     def on_solid_changed(self, sender, e):
         if self._hatch_changing: return
@@ -223,18 +251,27 @@ class RhinoSyncPanel(forms.Form):
             self._hatch_changing = True
             self.chk_hatch_explode.Checked = True
             self._hatch_changing = False
-
+            
     def on_annot_group_changed(self, sender, e):
-        if self._annot_changing:
-            return
-        if self.chk_annot_group.Checked:
-            self._annot_changing = True
-            self.chk_annot_ungroup.Checked = False
-            self._annot_changing = False
-        elif not self.chk_annot_ungroup.Checked:
-            self._annot_changing = True
-            self.chk_annot_group.Checked = True
-            self._annot_changing = False
+
+        selected = self.chk_annot_group.SelectedValue
+
+        if selected == "Group":
+            self.annotation_group = True
+        else:
+            self.annotation_group = False
+        
+    # def on_annot_group_changed(self, sender, e):
+    #     if self._annot_changing:
+    #         return
+    #     if self.chk_annot_group.Checked:
+    #         self._annot_changing = True
+    #         self.chk_annot_ungroup.Checked = False
+    #         self._annot_changing = False
+    #     elif not self.chk_annot_ungroup.Checked:
+    #         self._annot_changing = True
+    #         self.chk_annot_group.Checked = True
+    #         self._annot_changing = False
 
     def on_annot_ungroup_changed(self, sender, e):
         if self._annot_changing:
