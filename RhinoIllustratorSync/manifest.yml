@@ -1,0 +1,20 @@
+name: rhino-illustrator-sync
+version: 1.0.0
+authors:
+  - Hamid
+description: >
+  Rhino ⇄ Adobe Illustrator Live Sync Plugin.
+  Import Illustrator artboards into Rhino as layer-organized rectangles, and
+  export Rhino curves, hatches, annotations, pictures, and text back to
+  Illustrator in one click. Supports Windows (COM) and macOS (AppleScript).
+url: https://github.com/hamid/rhino-illustrator-sync
+keywords:
+  - rhino
+  - illustrator
+  - adobe
+  - sync
+  - export
+  - import
+  - artboard
+  - curves
+icon: icon.png
