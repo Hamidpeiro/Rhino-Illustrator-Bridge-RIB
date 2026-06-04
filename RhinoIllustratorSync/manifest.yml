@@ -7,7 +7,7 @@ description: >
   Import Illustrator artboards into Rhino as layer-organized
   layouts and export Rhino curves, hatches, annotations, images, and text back to Adobe Illustrator with a single click.
   Supports both Windows (COM) and macOS (AppleScript) workflows.
-url: https://github.com/hamid/rhino-illustrator-sync
+url: https://github.com/Hamidpeiro/Rhino-Illustrator-Bridge-RIB
 keywords:
   - rhino
   - illustrator
