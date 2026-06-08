@@ -26,10 +26,30 @@ Copy [rhino_illustrator_sync_panel.jsx](file:///c:/Users/hamid/Documents/GitHub/
 
 *Restart Illustrator to see it under `File > Scripts > rhino_illustrator_sync_panel`.*
 
-### 2. Rhino Sync Panel
+### 2. Rhino Sync Panel (Python Script)
 Run [rhino_illustrator_sync_panel.py](file:///c:/Users/hamid/Documents/GitHub/rhino-illustrator-sync/Rhino/rhino_illustrator_sync_panel.py):
 - Open Rhino's script editor by typing `EditPythonScript` in the command line, open the file, and run it.
 - Alternatively, assign it to an alias or custom toolbar button using `-RunPythonScript "C:\path\to\rhino_illustrator_sync_panel.py"`.
+
+### 3. Compiled C# Plugin (Advanced Panel)
+Alternatively, you can build and install the C# plugin (`RhinoIllustratorBridge`) which provides a native dockable panel in Rhino:
+
+#### Building the C# Plugin Packages:
+- **Windows:** Run the PowerShell script `build-yak-package.ps1` inside the `RhinoIllustratorBridge/` directory.
+- **macOS:** Run the bash script `build-mac.sh` inside the `RhinoIllustratorBridge/` directory:
+  ```bash
+  cd RhinoIllustratorBridge
+  chmod +x build-mac.sh
+  ./build-mac.sh
+  ```
+
+#### Installing on macOS:
+1. Go to the `dist/mac/` folder.
+2. Double-click `RhinoIllustratorBridge.macrhi` (the Mac Rhino Installer).
+3. Restart Rhino 8.
+4. Type `RhinoIllustratorBridge` in the command line to open the sync panel.
+
+> **Warning for macOS:** Do NOT double-click the raw `.rhp` file. Doing so will cause Rhino to try to open it as a 3D model document, resulting in a "File type not supported by Rhinoceros" error. Always double-click the `.macrhi` installer instead.
 
 ---
 

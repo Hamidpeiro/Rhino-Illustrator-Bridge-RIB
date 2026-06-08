@@ -62,13 +62,15 @@ namespace RhinoIllustratorBridge
             _lblImportStatus = new Label
             {
                 Text = "📥 Last Imported: Never",
-                Font = new Font(FontFamilies.Sans, 9)
+                Font = new Font(FontFamilies.Sans, 9),
+                TextAlignment = TextAlignment.Left
             };
 
             _lblExportStatus = new Label
             {
                 Text = "📤 Last Exported: Never",
-                Font = new Font(FontFamilies.Sans, 9)
+                Font = new Font(FontFamilies.Sans, 9),
+                TextAlignment = TextAlignment.Left
             };
 
             _btnImport = new Button
@@ -95,7 +97,8 @@ namespace RhinoIllustratorBridge
             _lblHatchTitle = new Label
             {
                 Text = "Hatch Export:",
-                Font = new Font(FontFamilies.Sans, 9, FontStyle.Bold)
+                Font = new Font(FontFamilies.Sans, 9, FontStyle.Bold),
+                TextAlignment = TextAlignment.Left
             };
 
             _chkHatchNone = new CheckBox
@@ -119,7 +122,8 @@ namespace RhinoIllustratorBridge
             _lblAnnotTitle = new Label
             {
                 Text = "Annotation Export:",
-                Font = new Font(FontFamilies.Sans, 9, FontStyle.Bold)
+                Font = new Font(FontFamilies.Sans, 9, FontStyle.Bold),
+                TextAlignment = TextAlignment.Left
             };
 
             _rbAnnotGroup = new RadioButtonList
@@ -134,7 +138,8 @@ namespace RhinoIllustratorBridge
             {
                 Text = "Status: Ready",
                 Font = new Font(FontFamilies.Sans, 8.5f),
-                Enabled = false
+                Enabled = false,
+                TextAlignment = TextAlignment.Left
             };
 
             // Layout assembly
@@ -143,25 +148,25 @@ namespace RhinoIllustratorBridge
             layout.AddRow(_lblHeader);
             layout.AddRow(CreateDivider());
 
-            layout.AddRow(_lblImportStatus);
-            layout.AddRow(_lblExportStatus);
+            layout.AddRow(_lblImportStatus, null);
+            layout.AddRow(_lblExportStatus, null);
             layout.AddRow(CreateDivider());
 
             layout.AddRow(_btnImport);
             layout.AddRow(_btnExport);
-            layout.AddRow(_chkExportPics);
+            layout.AddRow(_chkExportPics, null);
             layout.AddRow(CreateDivider());
 
-            layout.AddRow(_lblHatchTitle);
-            layout.AddRow(_chkHatchNone);
-            layout.AddRow(_rbHatchMode);
+            layout.AddRow(_lblHatchTitle, null);
+            layout.AddRow(_chkHatchNone, null);
+            layout.AddRow(_rbHatchMode, null);
             layout.AddRow(CreateDivider());
 
-            layout.AddRow(_lblAnnotTitle);
-            layout.AddRow(_rbAnnotGroup);
+            layout.AddRow(_lblAnnotTitle, null);
+            layout.AddRow(_rbAnnotGroup, null);
             layout.AddRow(CreateDivider());
 
-            layout.AddRow(_lblStatus);
+            layout.AddRow(_lblStatus, null);
 
             Content = layout;
         }

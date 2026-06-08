@@ -1,0 +1,13 @@
+/Users/apple/Private/rhino-illustrator-sync/RhinoIllustratorBridge/bin/Debug/net7.0/RhinoIllustratorBridge.deps.json
+/Users/apple/Private/rhino-illustrator-sync/RhinoIllustratorBridge/bin/Debug/net7.0/RhinoIllustratorBridge.rhp
+/Users/apple/Private/rhino-illustrator-sync/RhinoIllustratorBridge/bin/Debug/net7.0/RhinoIllustratorBridge.pdb
+/Users/apple/Private/rhino-illustrator-sync/RhinoIllustratorBridge/obj/Debug/net7.0/RhinoIllustratorBridge.csproj.AssemblyReference.cache
+/Users/apple/Private/rhino-illustrator-sync/RhinoIllustratorBridge/obj/Debug/net7.0/RhinoIllustratorBridge.GeneratedMSBuildEditorConfig.editorconfig
+/Users/apple/Private/rhino-illustrator-sync/RhinoIllustratorBridge/obj/Debug/net7.0/RhinoIllustratorBridge.AssemblyInfoInputs.cache
+/Users/apple/Private/rhino-illustrator-sync/RhinoIllustratorBridge/obj/Debug/net7.0/RhinoIllustratorBridge.AssemblyInfo.cs
+/Users/apple/Private/rhino-illustrator-sync/RhinoIllustratorBridge/obj/Debug/net7.0/RhinoIllustratorBridge.csproj.CoreCompileInputs.cache
+/Users/apple/Private/rhino-illustrator-sync/RhinoIllustratorBridge/obj/Debug/net7.0/RhinoIllustratorBridge.sourcelink.json
+/Users/apple/Private/rhino-illustrator-sync/RhinoIllustratorBridge/obj/Debug/net7.0/RhinoIllustratorBridge.rhp
+/Users/apple/Private/rhino-illustrator-sync/RhinoIllustratorBridge/obj/Debug/net7.0/refint/RhinoIllustratorBridge.rhp
+/Users/apple/Private/rhino-illustrator-sync/RhinoIllustratorBridge/obj/Debug/net7.0/RhinoIllustratorBridge.pdb
+/Users/apple/Private/rhino-illustrator-sync/RhinoIllustratorBridge/obj/Debug/net7.0/ref/RhinoIllustratorBridge.rhp

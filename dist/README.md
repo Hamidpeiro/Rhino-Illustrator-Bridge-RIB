@@ -19,13 +19,24 @@
 
 ### macOS Installation
 
-1. Copy `mac/RhinoIllustratorBridge.rhp` to a permanent location
-   (e.g. `~/Library/Application Support/McNeel/Rhinoceros/8.0/Plug-ins/`)
-2. Open Rhino 8
-3. Type `_PlugInManager` in the command line
-4. Click **Install…** and browse to the `.rhp` file
-5. Restart Rhino
-6. Type `RhinoIllustratorBridge` in the command line to open the panel
+You can install the plugin on macOS using one of the following methods:
+
+#### Method 1: Using the Mac Installer (Recommended)
+1. Go to the `dist/mac` folder.
+2. Double-click the `RhinoIllustratorBridge.macrhi` file. (Alternatively, drag it onto the Rhino icon in your Dock).
+3. Rhino will open and install the plugin automatically.
+4. Restart Rhino to complete the installation.
+5. Type `RhinoIllustratorBridge` in the command line to launch the panel.
+
+> **Warning:** Do NOT double-click `RhinoIllustratorBridge.rhp` directly! Finder will try to open it as a CAD document, resulting in a **"File type not supported by Rhinoceros"** error. Only double-click the `.macrhi` installer file, or load the `.rhp` using the manual steps below.
+
+#### Method 2: Manual Load via Plug-in Manager
+1. Copy `dist/mac/RhinoIllustratorBridge.rhp` to a permanent folder on your drive (e.g. `~/Library/Application Support/McNeel/Rhinoceros/8.0/Plug-ins/`).
+2. Open Rhino 8.
+3. Type `_PlugInManager` in the command line.
+4. Click **Install...** (or **+** button) and select the `.rhp` file you copied.
+5. Restart Rhino.
+6. Type `RhinoIllustratorBridge` in the command line to launch the panel.
 
 > **macOS Note:** The first time the plugin tries to communicate with
 > Illustrator, macOS may ask you to grant Rhino permission to control

@@ -172,24 +172,25 @@
     ]
   },
   "packageFolders": {
-    "C:\\Users\\hamid\\.nuget\\packages\\": {}
+    "/Users/apple/.nuget/packages/": {}
   },
   "project": {
     "version": "1.0.0",
     "restore": {
-      "projectUniqueName": "C:\\Users\\hamid\\Documents\\GitHub\\rhino-illustrator-sync\\RhinoIllustratorBridge\\RhinoIllustratorBridge.csproj",
+      "projectUniqueName": "/Users/apple/Private/rhino-illustrator-sync/RhinoIllustratorBridge/RhinoIllustratorBridge.csproj",
       "projectName": "RhinoIllustratorBridge",
-      "projectPath": "C:\\Users\\hamid\\Documents\\GitHub\\rhino-illustrator-sync\\RhinoIllustratorBridge\\RhinoIllustratorBridge.csproj",
-      "packagesPath": "C:\\Users\\hamid\\.nuget\\packages\\",
-      "outputPath": "C:\\Users\\hamid\\Documents\\GitHub\\rhino-illustrator-sync\\RhinoIllustratorBridge\\obj\\",
+      "projectPath": "/Users/apple/Private/rhino-illustrator-sync/RhinoIllustratorBridge/RhinoIllustratorBridge.csproj",
+      "packagesPath": "/Users/apple/.nuget/packages/",
+      "outputPath": "/Users/apple/Private/rhino-illustrator-sync/RhinoIllustratorBridge/obj/",
       "projectStyle": "PackageReference",
       "configFilePaths": [
-        "C:\\Users\\hamid\\AppData\\Roaming\\NuGet\\NuGet.Config"
+        "/Users/apple/.nuget/NuGet/NuGet.Config"
       ],
       "originalTargetFrameworks": [
         "net7.0"
       ],
       "sources": {
+        "/opt/homebrew/Cellar/dotnet/10.0.102/libexec/library-packs": {},
         "https://api.nuget.org/v3/index.json": {}
       },
       "frameworks": {
@@ -207,7 +208,8 @@
         "enableAudit": "true",
         "auditLevel": "low",
         "auditMode": "direct"
-      }
+      },
+      "SdkAnalysisLevel": "10.0.100"
     },
     "frameworks": {
       "net7.0": {
@@ -242,10 +244,6 @@
           {
             "name": "Microsoft.NETCore.App.Ref",
             "version": "[7.0.20, 7.0.20]"
-          },
-          {
-            "name": "Microsoft.WindowsDesktop.App.Ref",
-            "version": "[7.0.20, 7.0.20]"
           }
         ],
         "frameworkReferences": {
@@ -253,7 +251,7 @@
             "privateAssets": "all"
           }
         },
-        "runtimeIdentifierGraphPath": "C:\\Program Files\\dotnet\\sdk\\8.0.421\\RuntimeIdentifierGraph.json"
+        "runtimeIdentifierGraphPath": "/opt/homebrew/Cellar/dotnet/10.0.102/libexec/sdk/10.0.102/RuntimeIdentifierGraph.json"
       }
     }
   },

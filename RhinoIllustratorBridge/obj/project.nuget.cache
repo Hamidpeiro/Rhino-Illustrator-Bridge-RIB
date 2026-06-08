@@ -1,22 +1,23 @@
 {
   "version": 2,
-  "dgSpecHash": "tbOCTYQECeU=",
+  "dgSpecHash": "YDdxdwIrbyo=",
   "success": true,
-  "projectFilePath": "C:\\Users\\hamid\\Documents\\GitHub\\rhino-illustrator-sync\\RhinoIllustratorBridge\\RhinoIllustratorBridge.csproj",
+  "projectFilePath": "/Users/apple/Private/rhino-illustrator-sync/RhinoIllustratorBridge/RhinoIllustratorBridge.csproj",
   "expectedPackageFiles": [
-    "C:\\Users\\hamid\\.nuget\\packages\\microsoft.win32.systemevents\\7.0.0\\microsoft.win32.systemevents.7.0.0.nupkg.sha512",
-    "C:\\Users\\hamid\\.nuget\\packages\\rhinocommon\\8.5.24072.13001\\rhinocommon.8.5.24072.13001.nupkg.sha512",
-    "C:\\Users\\hamid\\.nuget\\packages\\system.drawing.common\\7.0.0\\system.drawing.common.7.0.0.nupkg.sha512",
-    "C:\\Users\\hamid\\.nuget\\packages\\microsoft.netcore.app.ref\\7.0.20\\microsoft.netcore.app.ref.7.0.20.nupkg.sha512",
-    "C:\\Users\\hamid\\.nuget\\packages\\microsoft.windowsdesktop.app.ref\\7.0.20\\microsoft.windowsdesktop.app.ref.7.0.20.nupkg.sha512",
-    "C:\\Users\\hamid\\.nuget\\packages\\microsoft.aspnetcore.app.ref\\7.0.20\\microsoft.aspnetcore.app.ref.7.0.20.nupkg.sha512"
+    "/Users/apple/.nuget/packages/microsoft.win32.systemevents/7.0.0/microsoft.win32.systemevents.7.0.0.nupkg.sha512",
+    "/Users/apple/.nuget/packages/rhinocommon/8.5.24072.13001/rhinocommon.8.5.24072.13001.nupkg.sha512",
+    "/Users/apple/.nuget/packages/system.drawing.common/7.0.0/system.drawing.common.7.0.0.nupkg.sha512",
+    "/Users/apple/.nuget/packages/microsoft.netcore.app.ref/7.0.20/microsoft.netcore.app.ref.7.0.20.nupkg.sha512",
+    "/Users/apple/.nuget/packages/microsoft.aspnetcore.app.ref/7.0.20/microsoft.aspnetcore.app.ref.7.0.20.nupkg.sha512"
   ],
   "logs": [
     {
       "code": "NU1701",
       "level": "Warning",
-      "warningLevel": 1,
       "message": "Package 'RhinoCommon 8.5.24072.13001' was restored using '.NETFramework,Version=v4.6.1, .NETFramework,Version=v4.6.2, .NETFramework,Version=v4.7, .NETFramework,Version=v4.7.1, .NETFramework,Version=v4.7.2, .NETFramework,Version=v4.8, .NETFramework,Version=v4.8.1' instead of the project target framework 'net7.0'. This package may not be fully compatible with your project.",
+      "projectPath": "/Users/apple/Private/rhino-illustrator-sync/RhinoIllustratorBridge/RhinoIllustratorBridge.csproj",
+      "warningLevel": 1,
+      "filePath": "/Users/apple/Private/rhino-illustrator-sync/RhinoIllustratorBridge/RhinoIllustratorBridge.csproj",
       "libraryId": "RhinoCommon",
       "targetGraphs": [
         "net7.0"
