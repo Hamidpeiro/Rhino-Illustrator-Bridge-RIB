@@ -1,22 +1,38 @@
 <Project Sdk="Microsoft.NET.Sdk">
+
   <PropertyGroup>
     <TargetFramework>net7.0</TargetFramework>
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
+
     <AssemblyTitle>Rhino Illustrator Bridge</AssemblyTitle>
     <Description>Rhino ⇄ Adobe Illustrator Bridge – Import artboards, export curves, hatches, annotations and text</Description>
+
     <TargetExt>.rhp</TargetExt>
+
     <Version>1.0.0</Version>
-    <Authors>Hamid</Authors>
+    <Authors>Hamid Peiro</Authors>
     <Copyright>Copyright © 2026</Copyright>
   </PropertyGroup>
 
+  <!-- Rhino + dependencies -->
   <ItemGroup>
     <PackageReference Include="RhinoCommon" Version="8.5.24072.13001" IncludeAssets="compile;build" />
     <PackageReference Include="System.Drawing.Common" Version="7.0.0" />
   </ItemGroup>
 
+  <!-- Embedded resources (icons etc.) -->
   <ItemGroup>
     <EmbeddedResource Include="Resources\sync_icon.png" />
   </ItemGroup>
+
+  <!-- 🆕 INCLUDE RUI FILE IN BUILD OUTPUT -->
+  <ItemGroup>
+    <None Include="Resources\RhinoIllustratorBridge.rui">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+      <Pack>true</Pack>
+      <PackagePath>content\</PackagePath>
+    </None>
+  </ItemGroup>
+
 </Project>
