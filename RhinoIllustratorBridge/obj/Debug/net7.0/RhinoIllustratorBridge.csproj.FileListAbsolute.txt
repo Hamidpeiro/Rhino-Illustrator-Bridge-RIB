@@ -1,0 +1,14 @@
+C:\Users\hamid\Documents\GitHub\rhino-illustrator-sync\RhinoIllustratorBridge\bin\Debug\net7.0\RhinoIllustratorBridge.deps.json
+C:\Users\hamid\Documents\GitHub\rhino-illustrator-sync\RhinoIllustratorBridge\bin\Debug\net7.0\RhinoIllustratorBridge.rhp
+C:\Users\hamid\Documents\GitHub\rhino-illustrator-sync\RhinoIllustratorBridge\bin\Debug\net7.0\RhinoIllustratorBridge.pdb
+C:\Users\hamid\Documents\GitHub\rhino-illustrator-sync\RhinoIllustratorBridge\obj\Debug\net7.0\RhinoIllustratorBridge.csproj.AssemblyReference.cache
+C:\Users\hamid\Documents\GitHub\rhino-illustrator-sync\RhinoIllustratorBridge\obj\Debug\net7.0\RhinoIllustratorBridge.GeneratedMSBuildEditorConfig.editorconfig
+C:\Users\hamid\Documents\GitHub\rhino-illustrator-sync\RhinoIllustratorBridge\obj\Debug\net7.0\RhinoIllustratorBridge.AssemblyInfoInputs.cache
+C:\Users\hamid\Documents\GitHub\rhino-illustrator-sync\RhinoIllustratorBridge\obj\Debug\net7.0\RhinoIllustratorBridge.AssemblyInfo.cs
+C:\Users\hamid\Documents\GitHub\rhino-illustrator-sync\RhinoIllustratorBridge\obj\Debug\net7.0\RhinoIllustratorBridge.csproj.CoreCompileInputs.cache
+C:\Users\hamid\Documents\GitHub\rhino-illustrator-sync\RhinoIllustratorBridge\obj\Debug\net7.0\RhinoIllustratorBridge.sourcelink.json
+C:\Users\hamid\Documents\GitHub\rhino-illustrator-sync\RhinoIllustratorBridge\obj\Debug\net7.0\RhinoIllustratorBridge.rhp
+C:\Users\hamid\Documents\GitHub\rhino-illustrator-sync\RhinoIllustratorBridge\obj\Debug\net7.0\refint\RhinoIllustratorBridge.rhp
+C:\Users\hamid\Documents\GitHub\rhino-illustrator-sync\RhinoIllustratorBridge\obj\Debug\net7.0\RhinoIllustratorBridge.pdb
+C:\Users\hamid\Documents\GitHub\rhino-illustrator-sync\RhinoIllustratorBridge\obj\Debug\net7.0\ref\RhinoIllustratorBridge.rhp
+C:\Users\hamid\Documents\GitHub\rhino-illustrator-sync\RhinoIllustratorBridge\bin\Debug\net7.0\Resources\RhinoIllustratorBridge.rui
