@@ -35,7 +35,7 @@ rm -rf "$STAGING_DIR"
 mkdir -p "$NET7_DIR"
 
 # Copy built files, excluding RhinoCommon and Eto references (provided by Rhino runtime)
-for file in "$BUILD_OUTPUT"/*.{rhp,dll,pdb}; do
+for file in "$BUILD_OUTPUT"/*.{rhp,dll,pdb,rui}; do
     # Check if files exist before trying to copy
     [ -e "$file" ] || continue
     filename=$(basename "$file")

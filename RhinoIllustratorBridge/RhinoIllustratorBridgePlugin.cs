@@ -1,6 +1,7 @@
 using System;
 using System.IO;
 using System.Drawing;
+using Rhino;
 using Rhino.PlugIns;
 using Rhino.UI;
 
@@ -30,7 +31,24 @@ namespace RhinoIllustratorBridge
 
             Panels.RegisterPanel(this, panelType, "Illustrator Bridge", panelIcon);
 
+            // Subscribe to Idle event to auto-show the toolbar once Rhino is ready
+            RhinoApp.Idle += OnIdleShowToolbar;
+
             return LoadReturnCode.Success;
+        }
+
+        private void OnIdleShowToolbar(object? sender, EventArgs e)
+        {
+            RhinoApp.Idle -= OnIdleShowToolbar; // Unsubscribe so it only runs once at startup
+            try
+            {
+                // Auto-show the toolbar group from our RUI library
+                RhinoApp.RunScript("_-ShowToolbar \"RhinoIllustratorBridge\" \"RhinoIllustratorBridge\"", false);
+            }
+            catch
+            {
+                // Silently handle exceptions if Rhino initialization state blocks scripting
+            }
         }
 
         private System.Drawing.Icon? GetPanelIcon()

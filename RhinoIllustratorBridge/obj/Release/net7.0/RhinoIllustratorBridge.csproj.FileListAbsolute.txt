@@ -24,3 +24,4 @@ C:/Users/hamid/Documents/GitHub/rhino-illustrator-sync/RhinoIllustratorBridge/ob
 /Users/apple/Private/rhino-illustrator-sync/RhinoIllustratorBridge/obj/Release/net7.0/refint/RhinoIllustratorBridge.rhp
 /Users/apple/Private/rhino-illustrator-sync/RhinoIllustratorBridge/obj/Release/net7.0/RhinoIllustratorBridge.pdb
 /Users/apple/Private/rhino-illustrator-sync/RhinoIllustratorBridge/obj/Release/net7.0/ref/RhinoIllustratorBridge.rhp
+/Users/apple/Private/rhino-illustrator-sync/RhinoIllustratorBridge/bin/Release/net7.0/RhinoIllustratorBridge.rui

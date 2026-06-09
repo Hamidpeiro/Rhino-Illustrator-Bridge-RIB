@@ -50,6 +50,10 @@ namespace RhinoIllustratorBridge
 
         private void InitializeUI()
         {
+            Eto.Style.Add<Label>("left-align-label", label => {
+                label.TextAlignment = TextAlignment.Left;
+            });
+
             Padding = new Padding(12);
 
             _lblHeader = new Label
@@ -63,14 +67,14 @@ namespace RhinoIllustratorBridge
             {
                 Text = "📥 Last Imported: Never",
                 Font = new Font(FontFamilies.Sans, 9),
-                TextAlignment = TextAlignment.Left
+                Style = "left-align-label"
             };
 
             _lblExportStatus = new Label
             {
                 Text = "📤 Last Exported: Never",
                 Font = new Font(FontFamilies.Sans, 9),
-                TextAlignment = TextAlignment.Left
+                Style = "left-align-label"
             };
 
             _btnImport = new Button
@@ -98,7 +102,7 @@ namespace RhinoIllustratorBridge
             {
                 Text = "Hatch Export:",
                 Font = new Font(FontFamilies.Sans, 9, FontStyle.Bold),
-                TextAlignment = TextAlignment.Left
+                Style = "left-align-label"
             };
 
             _chkHatchNone = new CheckBox
@@ -123,7 +127,7 @@ namespace RhinoIllustratorBridge
             {
                 Text = "Annotation Export:",
                 Font = new Font(FontFamilies.Sans, 9, FontStyle.Bold),
-                TextAlignment = TextAlignment.Left
+                Style = "left-align-label"
             };
 
             _rbAnnotGroup = new RadioButtonList
@@ -139,7 +143,7 @@ namespace RhinoIllustratorBridge
                 Text = "Status: Ready",
                 Font = new Font(FontFamilies.Sans, 8.5f),
                 Enabled = false,
-                TextAlignment = TextAlignment.Left
+                Style = "left-align-label"
             };
 
             // Layout assembly
@@ -148,27 +152,36 @@ namespace RhinoIllustratorBridge
             layout.AddRow(_lblHeader);
             layout.AddRow(CreateDivider());
 
-            layout.AddRow(_lblImportStatus, null);
-            layout.AddRow(_lblExportStatus, null);
+            layout.AddRow(LeftAlign(_lblImportStatus));
+            layout.AddRow(LeftAlign(_lblExportStatus));
             layout.AddRow(CreateDivider());
 
             layout.AddRow(_btnImport);
             layout.AddRow(_btnExport);
-            layout.AddRow(_chkExportPics, null);
+            layout.AddRow(LeftAlign(_chkExportPics));
             layout.AddRow(CreateDivider());
 
-            layout.AddRow(_lblHatchTitle, null);
-            layout.AddRow(_chkHatchNone, null);
-            layout.AddRow(_rbHatchMode, null);
+            layout.AddRow(LeftAlign(_lblHatchTitle));
+            layout.AddRow(LeftAlign(_chkHatchNone));
+            layout.AddRow(LeftAlign(_rbHatchMode));
             layout.AddRow(CreateDivider());
 
-            layout.AddRow(_lblAnnotTitle, null);
-            layout.AddRow(_rbAnnotGroup, null);
+            layout.AddRow(LeftAlign(_lblAnnotTitle));
+            layout.AddRow(LeftAlign(_rbAnnotGroup));
             layout.AddRow(CreateDivider());
 
-            layout.AddRow(_lblStatus, null);
+            layout.AddRow(LeftAlign(_lblStatus));
 
             Content = layout;
+        }
+
+        private Control LeftAlign(Control control)
+        {
+            return new StackLayout
+            {
+                Orientation = Orientation.Horizontal,
+                Items = { control }
+            };
         }
 
         private Control CreateDivider()

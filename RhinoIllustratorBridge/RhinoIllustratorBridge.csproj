@@ -29,6 +29,7 @@
   <!-- 🆕 INCLUDE RUI FILE IN BUILD OUTPUT -->
   <ItemGroup>
     <None Include="Resources\RhinoIllustratorBridge.rui">
+      <Link>RhinoIllustratorBridge.rui</Link>
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
       <Pack>true</Pack>
       <PackagePath>content\</PackagePath>

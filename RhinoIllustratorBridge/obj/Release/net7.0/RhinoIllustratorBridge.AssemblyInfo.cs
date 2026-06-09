@@ -10,13 +10,13 @@
 using System;
 using System.Reflection;
 
-[assembly: System.Reflection.AssemblyCompanyAttribute("Hamid")]
+[assembly: System.Reflection.AssemblyCompanyAttribute("Hamid Peiro")]
 [assembly: System.Reflection.AssemblyConfigurationAttribute("Release")]
 [assembly: System.Reflection.AssemblyCopyrightAttribute("Copyright © 2026")]
 [assembly: System.Reflection.AssemblyDescriptionAttribute(("Rhino ⇄ Adobe Illustrator Bridge – Import artboards, export curves, hatches, anno" +
     "tations and text"))]
 [assembly: System.Reflection.AssemblyFileVersionAttribute("1.0.0.0")]
-[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+4dd691433f44aa765066edcf211c8fdf2ec5b747")]
+[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+74d4c6fea1d8b421e0066c3c3754c6dfe7b4bd23")]
 [assembly: System.Reflection.AssemblyProductAttribute("RhinoIllustratorBridge")]
 [assembly: System.Reflection.AssemblyTitleAttribute("Rhino Illustrator Bridge")]
 [assembly: System.Reflection.AssemblyVersionAttribute("1.0.0.0")]
