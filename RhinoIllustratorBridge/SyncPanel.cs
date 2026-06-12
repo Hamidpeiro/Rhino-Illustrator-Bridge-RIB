@@ -16,7 +16,7 @@ namespace RhinoIllustratorBridge
     {
         public static Guid PanelId => typeof(SyncPanel).GUID;
 
-        private readonly string _desktopPath;
+        private readonly string _tempPath;
         private readonly string _aiArtboardsFile;
         private readonly string _rhinoCurvesFile;
 
@@ -36,9 +36,9 @@ namespace RhinoIllustratorBridge
 
         public SyncPanel()
         {
-            _desktopPath = Environment.GetFolderPath(Environment.SpecialFolder.Desktop);
-            _aiArtboardsFile = Path.Combine(_desktopPath, "ai_artboards.json");
-            _rhinoCurvesFile = Path.Combine(_desktopPath, "rhino_curves.json");
+            _tempPath = Path.GetTempPath();
+            _aiArtboardsFile = Path.Combine(_tempPath, "ai_artboards.json");
+            _rhinoCurvesFile = Path.Combine(_tempPath, "rhino_curves.json");
 
             InitializeUI();
         }
@@ -257,7 +257,7 @@ namespace RhinoIllustratorBridge
                 bool fallback = false;
                 if (File.Exists(_aiArtboardsFile))
                 {
-                    string msg = $"{error}\n\nWould you like to import the last exported artboards from Desktop JSON instead?";
+                    string msg = $"{error}\n\nWould you like to import the last exported artboards from backup JSON instead?";
                     var res = MessageBox.Show(msg, "Illustrator Connection Failed", MessageBoxButtons.YesNo, MessageBoxType.Question);
                     if (res == DialogResult.Yes)
                     {
@@ -374,7 +374,7 @@ namespace RhinoIllustratorBridge
             var bridge = IllustratorBridgeFactory.Create();
 
             string curvesPathJs = _rhinoCurvesFile.Replace("\\", "/");
-            string resultFile = Path.Combine(_desktopPath, "_rhino_sync_result.txt");
+            string resultFile = Path.Combine(_tempPath, "_rhino_sync_result.txt");
             string resultPathJs = resultFile.Replace("\\", "/");
 
             // Format JSX content
@@ -382,7 +382,7 @@ namespace RhinoIllustratorBridge
                 .Replace("__CURVES_PATH__", curvesPathJs)
                 .Replace("__RESULT_PATH__", resultPathJs);
 
-            string jsxPath = Path.Combine(_desktopPath, "_rhino_sync_update.jsx");
+            string jsxPath = Path.Combine(_tempPath, "_rhino_sync_update.jsx");
 
             try
             {
@@ -476,7 +476,7 @@ namespace RhinoIllustratorBridge
                 _lblStatus.Text = "Status: Exported to JSON only";
                 if (!silent)
                 {
-                    string msg = $"✅ Curves exported to Desktop JSON.\n\n⚠️ Could not update Illustrator automatically:\n{error}";
+                    string msg = $"✅ Curves exported to temporary sync JSON.\n\n⚠️ Could not update Illustrator automatically:\n{error}";
                     MessageBox.Show(msg, "Export Successful", MessageBoxButtons.OK, MessageBoxType.Warning);
                 }
             }

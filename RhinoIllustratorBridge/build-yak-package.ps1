@@ -62,7 +62,7 @@ if (Test-Path $IconSrc) {
 Write-Host "  Staging complete." -ForegroundColor Green
 
 # Step 3: Build the Yak package
-Write-Host "[3/4] Building Yak package..." -ForegroundColor Yellow
+Write-Host "[3/5] Building Yak package..." -ForegroundColor Yellow
 if (Test-Path $YakPath) {
     Push-Location $StagingDir
     & $YakPath build
@@ -85,9 +85,52 @@ if (Test-Path $YakPath) {
     Write-Host '    "C:\Program Files\Rhino 8\System\Yak.exe" build' -ForegroundColor White
 }
 
-# Step 4: Summary
+# Step 4: Package the .macrhi installer
+Write-Host "[4/5] Packaging .macrhi installer..." -ForegroundColor Yellow
+$MacrhiStaging = Join-Path $ProjectDir "macrhi-staging"
+$MacrhiFolder = Join-Path $MacrhiStaging "RhinoIllustratorBridge.rhp"
+if (Test-Path $MacrhiStaging) { Remove-Item $MacrhiStaging -Recurse -Force }
+New-Item -ItemType Directory -Path $MacrhiFolder | Out-Null
+
+# Copy built files
+Copy-Item (Join-Path $Net7Dir "*") -Destination $MacrhiFolder -Recurse
+
+# Include RUI file if it exists in the project dir or resources
+$RuiPath = Join-Path $ProjectDir "RhinoIllustratorBridge.rui"
+if (Test-Path $RuiPath) {
+    Copy-Item $RuiPath -Destination $MacrhiFolder
+}
+
+$ZipFile = Join-Path $ProjectDir "RhinoIllustratorBridge.zip"
+if (Test-Path $ZipFile) { Remove-Item $ZipFile -Force }
+Compress-Archive -Path $MacrhiFolder -DestinationPath $ZipFile
+
+$MacrhiFile = Join-Path $ProjectDir "RhinoIllustratorBridge.macrhi"
+if (Test-Path $MacrhiFile) { Remove-Item $MacrhiFile -Force }
+Move-Item $ZipFile $MacrhiFile -Force
+Remove-Item $MacrhiStaging -Recurse -Force
+Write-Host "  Mac Rhino Installer (.macrhi) created: RhinoIllustratorBridge.macrhi" -ForegroundColor Green
+
+# Step 5: Update the dist/mac and dist/windows files
+Write-Host "[5/5] Updating files in dist/mac and dist/windows..." -ForegroundColor Yellow
+$RootDir = (Get-Item $ProjectDir).Parent.FullName
+$DistMac = Join-Path $RootDir "dist\mac"
+if (Test-Path $DistMac) {
+    Copy-Item (Join-Path $Net7Dir "RhinoIllustratorBridge.rhp") -Destination $DistMac -Force
+    if (Test-Path $MacrhiFile) {
+        Copy-Item $MacrhiFile -Destination $DistMac -Force
+    }
+    Write-Host "  Updated files in dist/mac" -ForegroundColor Green
+}
+$DistWin = Join-Path $RootDir "dist\windows"
+if (Test-Path $DistWin) {
+    Copy-Item (Join-Path $Net7Dir "RhinoIllustratorBridge.rhp") -Destination $DistWin -Force
+    Write-Host "  Updated files in dist/windows" -ForegroundColor Green
+}
+
+# Step 6: Summary
 Write-Host ""
-Write-Host "[4/4] Summary" -ForegroundColor Yellow
+Write-Host "[6/6] Summary" -ForegroundColor Yellow
 Write-Host "  Staging dir : $StagingDir" -ForegroundColor Gray
 Write-Host "  Build output: $BuildOutput" -ForegroundColor Gray
 Write-Host ""
