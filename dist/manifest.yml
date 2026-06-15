@@ -1,7 +1,7 @@
-name: Rhino Illustrator Bridge
+name: RhinoIllustratorBridge
 version: 1.0.0
 authors:
-  Hamid Peiro
+  - Hamid Peiro
 description: >
   Rhino ⇄ Adobe Illustrator Live Sync Plugin.
   Import Illustrator artboards into Rhino as layer-organized
