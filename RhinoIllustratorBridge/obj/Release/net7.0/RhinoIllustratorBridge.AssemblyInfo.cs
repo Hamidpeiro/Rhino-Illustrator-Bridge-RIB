@@ -16,7 +16,7 @@ using System.Reflection;
 [assembly: System.Reflection.AssemblyDescriptionAttribute(("Rhino ⇄ Adobe Illustrator Bridge – Import artboards, export curves, hatches, anno" +
     "tations and text"))]
 [assembly: System.Reflection.AssemblyFileVersionAttribute("1.0.0.0")]
-[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+8a36c52d27efd57926019561c6c5cb30b04a1d14")]
+[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+80a8c543375ca8402240d23a5d35d3d3149a081c")]
 [assembly: System.Reflection.AssemblyProductAttribute("RhinoIllustratorBridge")]
 [assembly: System.Reflection.AssemblyTitleAttribute("Rhino Illustrator Bridge")]
 [assembly: System.Reflection.AssemblyVersionAttribute("1.0.0.0")]
