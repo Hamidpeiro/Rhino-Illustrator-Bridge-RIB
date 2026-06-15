@@ -107,6 +107,7 @@ fi
 
 # Zip the directory and rename it to .macrhi
 cd "$MACRHI_STAGING"
+rm -f ../RhinoIllustratorBridge.macrhi
 zip -q -r ../RhinoIllustratorBridge.macrhi RhinoIllustratorBridge.rhp
 cd ..
 
