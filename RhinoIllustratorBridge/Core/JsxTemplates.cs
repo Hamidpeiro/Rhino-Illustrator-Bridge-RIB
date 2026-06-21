@@ -59,15 +59,19 @@ namespace RhinoIllustratorBridge.Core
 
         if (!raw || raw.length === 0) { writeResult(resultFile, ""ERROR:Curves JSON empty.""); return; }
 
+        var originalInteractionLevel = app.userInteractionLevel;
+        app.userInteractionLevel = UserInteractionLevel.DONTDISPLAYALERTS;
+
         var data;
         try {
             data = eval(""("" + raw + "")"");
         } catch(err) {
             writeResult(resultFile, ""ERROR:Failed to parse JSON: "" + err.toString());
+            app.userInteractionLevel = originalInteractionLevel;
             return;
         }
 
-        if (!data || data.length === 0) { writeResult(resultFile, ""ERROR:No curve data found.""); return; }
+        if (!data || data.length === 0) { writeResult(resultFile, ""ERROR:No curve data found.""); app.userInteractionLevel = originalInteractionLevel; return; }
 
         var doc = (app.documents.length > 0) ? app.activeDocument : app.documents.add();
 
@@ -269,8 +273,10 @@ namespace RhinoIllustratorBridge.Core
             }
         }
         app.redraw();
+        app.userInteractionLevel = originalInteractionLevel;
         writeResult(resultFile, ""SUCCESS:"" + totalCurves);
     } catch(e) {
+        app.userInteractionLevel = originalInteractionLevel;
         writeResult(resultFile, ""ERROR:"" + e.toString());
     }
 })();
