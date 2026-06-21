@@ -17,7 +17,7 @@ namespace RhinoIllustratorBridge.Bridges
                 // " becomes \"
                 string escapedJs = jsCode.Replace("\\", "\\\\").Replace("\"", "\\\"");
 
-                string appleScript = $"tell application \"Adobe Illustrator\"\n    do javascript \"{escapedJs}\"\nend tell";
+                string appleScript = $"with timeout of 600 seconds\n    tell application \"Adobe Illustrator\"\n        do javascript \"{escapedJs}\"\n    end tell\nend timeout";
 
                 ProcessStartInfo psi = new ProcessStartInfo
                 {
