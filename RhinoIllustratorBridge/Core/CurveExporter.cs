@@ -10,8 +10,12 @@ namespace RhinoIllustratorBridge.Core
 {
     public static class CurveExporter
     {
+        [ThreadStatic]
+        private static System.Collections.Generic.Dictionary<Guid, (bool isPic, string? path)>? _pictureCache;
+
         public static List<ExportGroup> BuildExportGroups(RhinoDoc doc, bool exportPictures, string hatchExportMode, bool annotationGroup)
         {
+            _pictureCache = new System.Collections.Generic.Dictionary<Guid, (bool isPic, string? path)>();
             var result = new List<ExportGroup>();
 
             int parentIdx = doc.Layers.FindByFullPath("Artboards", -1);
@@ -119,14 +123,24 @@ namespace RhinoIllustratorBridge.Core
         {
             var shapes = new List<ShapeData>();
             string objIdStr = obj.Id.ToString();
+            string layerName = obj.Document.Layers[obj.Attributes.LayerIndex].FullPath;
 
-            var doc = obj.Document;
-            string layerName = doc.Layers[obj.Attributes.LayerIndex].FullPath;
-            if (layerName.StartsWith("Artboards::"))
+            bool isPic = false;
+            string? cachedImgPath = null;
+            if (exportPictures && obj.ObjectType == ObjectType.Brep)
             {
-                layerName = layerName.Substring("Artboards::".Length);
+                isPic = IsPictureFrame(obj, out cachedImgPath);
             }
 
+            if (obj.ObjectType == ObjectType.Curve || obj.ObjectType == ObjectType.Hatch || isPic)
+            {
+                if (layerName.StartsWith("Artboards::"))
+                {
+                    layerName = layerName.Substring("Artboards::".Length);
+                }
+            }
+
+            var doc = obj.Document;
             var color = obj.Attributes.DrawColor(doc);
             int[] colorRgb = new int[] { color.R, color.G, color.B };
 
@@ -176,7 +190,7 @@ namespace RhinoIllustratorBridge.Core
             }
 
             // 2. Picture handling
-            if (exportPictures && IsPictureFrame(obj, out string? imgPath) && imgPath != null)
+            if (isPic && cachedImgPath != null)
             {
                 var bbox = obj.Geometry.GetBoundingBox(true);
                 if (bbox.IsValid)
@@ -195,7 +209,7 @@ namespace RhinoIllustratorBridge.Core
                         Top = -picTop,
                         Width = picRight - picLeft,
                         Height = picTop - picBottom,
-                        Image = imgPath
+                        Image = cachedImgPath
                     });
                 }
                 return shapes;
@@ -405,20 +419,38 @@ namespace RhinoIllustratorBridge.Core
         {
             imagePath = null;
             if (rhinoObj == null) return false;
-            if (rhinoObj.Geometry is not Brep brep) return false;
-            if (brep.Faces.Count != 1) return false;
 
-            int matIdx = rhinoObj.Attributes.MaterialIndex;
-            if (matIdx < 0) return false;
+            if (_pictureCache != null && _pictureCache.TryGetValue(rhinoObj.Id, out var cached))
+            {
+                imagePath = cached.path;
+                return cached.isPic;
+            }
 
-            var mat = rhinoObj.Document.Materials[matIdx];
-            if (mat == null) return false;
+            bool result = false;
+            if (rhinoObj.Geometry is Brep brep && brep.Faces.Count == 1)
+            {
+                int matIdx = rhinoObj.Attributes.MaterialIndex;
+                if (matIdx >= 0)
+                {
+                    var mat = rhinoObj.Document.Materials[matIdx];
+                    if (mat != null)
+                    {
+                        var tex = mat.GetBitmapTexture();
+                        if (tex != null && !string.IsNullOrEmpty(tex.FileName))
+                        {
+                            imagePath = tex.FileName;
+                            result = true;
+                        }
+                    }
+                }
+            }
 
-            var tex = mat.GetBitmapTexture();
-            if (tex == null || string.IsNullOrEmpty(tex.FileName)) return false;
+            if (_pictureCache != null)
+            {
+                _pictureCache[rhinoObj.Id] = (result, imagePath);
+            }
 
-            imagePath = tex.FileName;
-            return true;
+            return result;
         }
 
         private static bool IsSolidHatch(HatchObject hatchObj)
