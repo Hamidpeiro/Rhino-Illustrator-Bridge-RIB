@@ -101,6 +101,12 @@ namespace RhinoIllustratorBridge.Core
 
         var totalCurves = 0;
 
+        var itemMap = {};
+        for (var piIdx = 0; piIdx < doc.pageItems.length; piIdx++) {
+            var pitm = doc.pageItems[piIdx];
+            if (pitm.name) itemMap[pitm.name] = pitm;
+        }
+
         for (var i = 0; i < data.length; i++) {
             var abData = data[i];
             var curves = abData.curves;
@@ -114,16 +120,13 @@ namespace RhinoIllustratorBridge.Core
                 var group = null;
                 if (curve.group_id) {
                     var gid = ""group_"" + curve.group_id;
-                    try {
-                        group = doc.pageItems.getByName(gid);
-                        if (group.typename !== ""GroupItem"") group = null;
-                    } catch(e) {
-                        group = null;
-                    }
+                    group = itemMap[gid];
+                    if (group && group.typename !== ""GroupItem"") group = null;
                     if (!group) {
                         try {
                             group = targetLayer.groupItems.add();
                             group.name = gid;
+                            itemMap[gid] = group;
                         } catch(e) {}
                     }
                 }
@@ -133,7 +136,8 @@ namespace RhinoIllustratorBridge.Core
                 if (curve.type === ""text"") {
                     try {
                         if (curve.id) {
-                            try { var et = doc.pageItems.getByName(curve.id); if (et) et.remove(); } catch(e) {}
+                            var et = itemMap[curve.id];
+                            if (et) { try { et.remove(); } catch(e){} }
                         }
                         var textRef = targetLayer.textFrames.add();
                         textRef.contents = curve.text;
@@ -160,7 +164,7 @@ namespace RhinoIllustratorBridge.Core
                         try { var anch = textRef.anchor; dx = -anch[0]; dy = -anch[1]; }
                         catch(ae) { dy = fontSize * 0.8; }
                         textRef.position = [tx + dx, baselineY + dy];
-                        if (curve.id) textRef.name = curve.id;
+                        if (curve.id) { textRef.name = curve.id; itemMap[curve.id] = textRef; }
                         if (group) textRef.move(group, ElementPlacement.PLACEATEND);
                     } catch (e) {}
                     totalCurves++;
@@ -172,13 +176,16 @@ namespace RhinoIllustratorBridge.Core
                     try {
                         var imgFile = new File(curve.image);
                         if (imgFile.exists) {
-                            if (curve.id) { try { var ep = doc.pageItems.getByName(curve.id); if (ep) ep.remove(); } catch(e) {} }
+                            if (curve.id) { 
+                                var ep = itemMap[curve.id]; 
+                                if (ep) { try { ep.remove(); } catch(e){} } 
+                            }
                             var placed = targetLayer.placedItems.add();
                             placed.file = imgFile;
                             placed.position = [mmToPt(curve.left), -mmToPt(curve.top)];
                             placed.width = mmToPt(curve.width);
                             placed.height = mmToPt(curve.height);
-                            if (curve.id) placed.name = curve.id;
+                            if (curve.id) { placed.name = curve.id; itemMap[curve.id] = placed; }
                             if (group) placed.move(group, ElementPlacement.PLACEATEND);
                         }
                     } catch (e) {}
@@ -196,7 +203,7 @@ namespace RhinoIllustratorBridge.Core
 
                 var existingPath = null;
                 if (curve.id) {
-                    try { existingPath = doc.pageItems.getByName(curve.id); } catch(e) {}
+                    existingPath = itemMap[curve.id];
                 }
 
                 if (existingPath && existingPath.typename === ""PathItem"") {
@@ -205,6 +212,7 @@ namespace RhinoIllustratorBridge.Core
                         var r2 = (curve.radius !== undefined) ? mmToPt(curve.radius) : mmToPt(1);
                         var nc = targetLayer.pathItems.ellipse(cy2+r2, cx2-r2, r2*2, r2*2);
                         nc.name = curve.id; nc.closed = true;
+                        itemMap[curve.id] = nc;
                         nc.filled = existingPath.filled;
                         if (existingPath.filled) nc.fillColor = existingPath.fillColor;
                         nc.stroked = existingPath.stroked;
@@ -229,13 +237,13 @@ namespace RhinoIllustratorBridge.Core
                     var cx3 = pts[0][0], cy3 = pts[0][1];
                     var r3 = (curve.radius !== undefined) ? mmToPt(curve.radius) : mmToPt(1);
                     var circ = targetLayer.pathItems.ellipse(cy3+r3, cx3-r3, r3*2, r3*2);
-                    if (curve.id) circ.name = curve.id;
+                    if (curve.id) { circ.name = curve.id; itemMap[curve.id] = circ; }
                     circ.closed = true;
                     applyStroke(circ, curve.color, curve.width, curve.linetype);
                     if (group) circ.move(group, ElementPlacement.PLACEATEND);
                 } else if (pts.length >= 2) {
                     var poly = targetLayer.pathItems.add();
-                    if (curve.id) poly.name = curve.id;
+                    if (curve.id) { poly.name = curve.id; itemMap[curve.id] = poly; }
                     try {
                         for (var m = 0; m < pts.length; m++) {
                             var npt = poly.pathPoints.add();
