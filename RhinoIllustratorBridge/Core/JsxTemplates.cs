@@ -219,10 +219,7 @@ namespace RhinoIllustratorBridge.Core
                         if (group && existingPath.parent !== group) { try { existingPath.move(group, ElementPlacement.PLACEATEND); } catch(e) {} }
                         else if (!group && existingPath.parent !== targetLayer) { try { existingPath.move(targetLayer, ElementPlacement.PLACEATEND); } catch(e) {} }
                         
-                        var pp = existingPath.pathPoints;
-                        while (pp.length > pts.length) { pp[pp.length-1].remove(); }
-                        for (var m = 0; m < pp.length; m++) { pp[m].anchor = pts[m]; pp[m].leftDirection = pts[m]; pp[m].rightDirection = pts[m]; }
-                        for (var m = pp.length; m < pts.length; m++) { var npt = pp.add(); npt.anchor = pts[m]; npt.leftDirection = pts[m]; npt.rightDirection = pts[m]; npt.pointType = PointType.CORNER; }
+                        existingPath.setEntirePath(pts);
                         existingPath.closed = (curve.closed === true);
                     }
                     totalCurves++;
@@ -241,13 +238,7 @@ namespace RhinoIllustratorBridge.Core
                     var poly = targetLayer.pathItems.add();
                     if (curve.id) poly.name = curve.id;
                     try {
-                        for (var m = 0; m < pts.length; m++) {
-                            var npt = poly.pathPoints.add();
-                            npt.anchor = [pts[m][0], pts[m][1]];
-                            npt.leftDirection = npt.anchor;
-                            npt.rightDirection = npt.anchor;
-                            npt.pointType = PointType.CORNER;
-                        }
+                        poly.setEntirePath(pts);
                         var isFill = (curve.type === ""hatch_solid"" || curve.type === ""hatch"");
                         if (isFill) {
                             poly.closed = true; poly.filled = true; poly.stroked = false;
